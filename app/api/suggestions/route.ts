@@ -12,6 +12,10 @@ export function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const suggestion = createSuggestion(await request.json());
-  return NextResponse.json(suggestion, { status: 201 });
+  try {
+    const suggestion = createSuggestion(await request.json());
+    return NextResponse.json(suggestion, { status: 201 });
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 400 });
+  }
 }

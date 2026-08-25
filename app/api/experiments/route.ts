@@ -6,6 +6,10 @@ export function GET() {
 }
 
 export async function POST(request: Request) {
-  const experiment = createExperiment(await request.json());
-  return NextResponse.json(experiment, { status: 201 });
+  try {
+    const experiment = createExperiment(await request.json());
+    return NextResponse.json(experiment, { status: 201 });
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 400 });
+  }
 }

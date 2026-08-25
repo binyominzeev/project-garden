@@ -58,14 +58,14 @@ export function HomeClient({ initialRecommendations, projectOptions }: HomeClien
     setLoadingRecommendations(true);
     try {
       let response = await fetch(`/api/recommendations?exclude=${seenIds.join(",")}`, { cache: "no-store" });
-      let data: Project[] = await response.json();
-
       if (!response.ok) {
         throw new Error("Could not load recommendations");
       }
+      let data: Project[] = await response.json();
 
       if (data.length === 0) {
         response = await fetch("/api/recommendations", { cache: "no-store" });
+        if (!response.ok) throw new Error("Could not load recommendations");
         data = await response.json();
       }
 

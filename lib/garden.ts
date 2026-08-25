@@ -299,13 +299,15 @@ export function logProjectWork(id: number, input: { summary?: unknown; nextStep?
   return getProject(id);
 }
 
-export function listIdeas(): Idea[] {
+export function listIdeas(options: { projectId?: number } = {}): Idea[] {
+  const { projectId } = options;
   const rows = db.prepare(`
     SELECT ideas.*, projects.name AS project_name
     FROM ideas
     LEFT JOIN projects ON ideas.project_id = projects.id
+    ${projectId !== undefined ? "WHERE ideas.project_id = ?" : ""}
     ORDER BY ideas.created_at DESC
-  `).all() as JoinedRow[];
+  `).all(...(projectId !== undefined ? [projectId] : [])) as JoinedRow[];
   return rows.map(mapIdea);
 }
 
@@ -508,7 +510,7 @@ export function getProjectDetail(id: number): ProjectDetail | null {
 
   return {
     project,
-    ideas: listIdeas().filter((idea) => idea.project_id === id),
+    ideas: listIdeas({ projectId: id }),
     suggestions: listSuggestions({ projectId: id }),
     experiments: listExperiments(id),
   };

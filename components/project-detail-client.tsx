@@ -211,7 +211,7 @@ export function ProjectDetailClient({ detail, projectOptions }: ProjectDetailCli
             />
             <input
               className="input"
-              placeholder="What&apos;s the next step?"
+              placeholder="What's the next step?"
               value={logForm.nextStep}
               onChange={(event) => setLogForm((current) => ({ ...current, nextStep: event.target.value }))}
               required
