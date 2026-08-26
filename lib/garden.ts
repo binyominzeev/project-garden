@@ -25,11 +25,10 @@ type RecommendationOptions = {
   limit?: number;
 };
 
-type ProjectRow = Omit<Project, "id" | "interest" | "priority"> & {
+type ProjectRow = Omit<Project, "id" | "starred"> & {
   id: number;
   slug: string;
-  interest: number;
-  priority: number;
+  starred: number;
 };
 
 type JoinedRow = {
@@ -76,8 +75,8 @@ export function generateUniqueSlug(name: string, excludeProjectId?: number): str
 }
 
 const insertProject = db.prepare(`
-  INSERT INTO projects (slug, name, description, status, interest, priority, last_worked_on, current_step, notes, created_at, updated_at)
-  VALUES (@slug, @name, @description, @status, @interest, @priority, @last_worked_on, @current_step, @notes, @created_at, @updated_at)
+  INSERT INTO projects (slug, name, description, status, starred, last_worked_on, current_step, notes, created_at, updated_at)
+  VALUES (@slug, @name, @description, @status, @starred, @last_worked_on, @current_step, @notes, @created_at, @updated_at)
 `);
 
 const updateProjectStatement = db.prepare(`
@@ -86,8 +85,7 @@ const updateProjectStatement = db.prepare(`
       name = @name,
       description = @description,
       status = @status,
-      interest = @interest,
-      priority = @priority,
+      starred = @starred,
       last_worked_on = @last_worked_on,
       current_step = @current_step,
       notes = @notes,
@@ -143,12 +141,6 @@ function now() {
   return new Date().toISOString();
 }
 
-function clampRating(value: unknown, fallback = 3) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return fallback;
-  return Math.min(5, Math.max(1, Math.round(numeric)));
-}
-
 function stringValue(value: unknown, fallback = "") {
   return typeof value === "string" ? value.trim() : fallback;
 }
@@ -181,6 +173,17 @@ function normalizeProjectId(value: unknown) {
   return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
 }
 
+function normalizeBoolean(value: unknown, fallback = false) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(normalized)) return true;
+    if (["false", "0", "no", "off"].includes(normalized)) return false;
+  }
+  return fallback;
+}
+
 function normalizeTags(value: unknown) {
   if (Array.isArray(value)) {
     return value.map((tag) => String(tag).trim()).filter(Boolean);
@@ -205,7 +208,10 @@ function parseTags(value: string | null | undefined) {
 }
 
 function mapProject(row: ProjectRow): Project {
-  return row;
+  return {
+    ...row,
+    starred: Boolean(row.starred),
+  };
 }
 
 function mapIdea(row: JoinedRow): Idea {
@@ -257,7 +263,7 @@ export function listProjects(status?: string): Project[] {
     LEFT JOIN project_todos pt ON p.id = pt.project_id
     ${status ? "WHERE p.status = ?" : ""}
     GROUP BY p.id
-    ORDER BY p.updated_at DESC, p.interest DESC, p.priority DESC
+    ORDER BY p.starred DESC, p.updated_at DESC
   `;
 
   const rows = status
@@ -299,8 +305,7 @@ export function createProject(input: ProjectInput): Project {
     name,
     description: stringValue(input.description),
     status: normalizeProjectStatus(input.status),
-    interest: clampRating(input.interest, 3),
-    priority: clampRating(input.priority, 3),
+    starred: normalizeBoolean(input.starred, false) ? 1 : 0,
     last_worked_on: nullableString(input.last_worked_on),
     current_step: stringValue(input.current_step),
     notes: stringValue(input.notes),
@@ -327,8 +332,7 @@ export function updateProject(idOrSlug: number | string, input: ProjectInput): P
     name: newName,
     description: stringValue(input.description, existing.description),
     status: normalizeProjectStatus(input.status ?? existing.status),
-    interest: clampRating(input.interest ?? existing.interest, existing.interest),
-    priority: clampRating(input.priority ?? existing.priority, existing.priority),
+    starred: normalizeBoolean(input.starred, existing.starred) ? 1 : 0,
     last_worked_on:
       input.last_worked_on === null
         ? null
@@ -365,8 +369,7 @@ export function logProjectWork(idOrSlug: number | string, input: { summary?: unk
     name: existing.name,
     description: existing.description,
     status: existing.status,
-    interest: existing.interest,
-    priority: existing.priority,
+    starred: existing.starred ? 1 : 0,
     last_worked_on: timestamp,
     current_step: nextStep,
     notes,
@@ -837,12 +840,11 @@ export function getProjectRecommendations(options: RecommendationOptions = {}): 
         ? Math.floor((Date.now() - new Date(project.last_worked_on).getTime()) / (1000 * 60 * 60 * 24))
         : 45;
       const idleBonus = Math.min(Math.max(daysSinceWorked, 0), 45) * 0.08;
-      const interestWeight = project.interest * 1.9;
-      const priorityWeight = project.priority * 1.7;
+      const starredBonus = project.starred ? 4.2 : 0;
       const statusBonus = project.status === "active" ? 1.5 : project.status === "idea" ? 1.1 : 0.4;
       return {
         project,
-        score: idleBonus + interestWeight + priorityWeight + statusBonus,
+        score: idleBonus + starredBonus + statusBonus,
       };
     })
     .sort((left, right) => right.score - left.score || right.project.updated_at.localeCompare(left.project.updated_at));

@@ -7,8 +7,7 @@ const projectSeed = [
     name: "Project Garden",
     description: "A calm dashboard for choosing what to work on across personal software projects.",
     status: "active",
-    interest: 5,
-    priority: 5,
+    starred: true,
     last_worked_on: daysAgo(1),
     current_step: "Finish the recommendations card interactions and polish the project detail page.",
     notes: "Core MVP is in place. Need to keep the tone warm and personal.",
@@ -17,8 +16,7 @@ const projectSeed = [
     name: "Voice Memo Summarizer",
     description: "A tiny app that turns rambly phone voice notes into concise action items.",
     status: "active",
-    interest: 5,
-    priority: 4,
+    starred: true,
     last_worked_on: daysAgo(9),
     current_step: "Prototype local transcription fallback for offline notes.",
     notes: "The mobile capture flow feels delightful already.",
@@ -27,8 +25,7 @@ const projectSeed = [
     name: "Recipe Screenshot Parser",
     description: "Extract ingredients and steps from screenshots so recipes stop living in camera roll chaos.",
     status: "paused",
-    interest: 4,
-    priority: 3,
+    starred: false,
     last_worked_on: daysAgo(22),
     current_step: "Evaluate OCR libraries with better handwritten support.",
     notes: "Promising utility, but parsing quality needs another pass.",
@@ -37,8 +34,7 @@ const projectSeed = [
     name: "Indie Analytics Journal",
     description: "Combine product metrics with a daily journal so numbers have context.",
     status: "idea",
-    interest: 4,
-    priority: 4,
+    starred: true,
     last_worked_on: null,
     current_step: "Sketch the weekly review screen and metric import flow.",
     notes: "Could be useful for tiny SaaS experiments.",
@@ -47,8 +43,7 @@ const projectSeed = [
     name: "Tiny CRM for Friend Projects",
     description: "A relationship tracker for collaborators, references, and casual project check-ins.",
     status: "paused",
-    interest: 3,
-    priority: 2,
+    starred: false,
     last_worked_on: daysAgo(40),
     current_step: "Decide whether this should really be a Notion template instead of an app.",
     notes: "Useful, but maybe overbuilt.",
@@ -57,8 +52,7 @@ const projectSeed = [
     name: "Open Tabs Graveyard",
     description: "A browser extension that helps turn tab clutter into saved ideas or tasks.",
     status: "active",
-    interest: 4,
-    priority: 5,
+    starred: true,
     last_worked_on: daysAgo(6),
     current_step: "Build the archive-to-reading-list flow.",
     notes: "Strong personal painkiller project.",
@@ -67,8 +61,7 @@ const projectSeed = [
     name: "Neighborhood Event Bot",
     description: "A weekly digest of local events stitched together from community calendars.",
     status: "idea",
-    interest: 3,
-    priority: 3,
+    starred: false,
     last_worked_on: null,
     current_step: "See whether calendar sources are consistent enough to scrape.",
     notes: "Could be charming if the data quality holds up.",
@@ -77,8 +70,7 @@ const projectSeed = [
     name: "Desk Stretch Companion",
     description: "Gentle movement reminders for long coding sessions, tuned for deep work blocks.",
     status: "archived",
-    interest: 2,
-    priority: 1,
+    starred: false,
     last_worked_on: daysAgo(120),
     current_step: "Leave archived unless a strong reason returns.",
     notes: "Nice concept, but the habit never stuck.",
@@ -87,8 +79,7 @@ const projectSeed = [
     name: "Personal API Cookbook",
     description: "A searchable archive of clean API examples from projects you enjoyed building.",
     status: "active",
-    interest: 4,
-    priority: 4,
+    starred: true,
     last_worked_on: daysAgo(14),
     current_step: "Port the favorite auth examples and document copy-paste snippets.",
     notes: "This could save future-you a lot of setup time.",
@@ -160,8 +151,8 @@ function main() {
   `);
 
   const insertProject = db.prepare(`
-    INSERT INTO projects (slug, name, description, status, interest, priority, last_worked_on, current_step, notes, created_at, updated_at)
-    VALUES (@slug, @name, @description, @status, @interest, @priority, @last_worked_on, @current_step, @notes, @created_at, @updated_at)
+    INSERT INTO projects (slug, name, description, status, starred, last_worked_on, current_step, notes, created_at, updated_at)
+    VALUES (@slug, @name, @description, @status, @starred, @last_worked_on, @current_step, @notes, @created_at, @updated_at)
   `);
 
   const insertIdea = db.prepare(`

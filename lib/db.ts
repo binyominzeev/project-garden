@@ -13,8 +13,7 @@ db.exec(`
     name TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL CHECK(status IN ('active', 'paused', 'archived', 'idea')) DEFAULT 'idea',
-    interest INTEGER NOT NULL DEFAULT 3 CHECK(interest BETWEEN 1 AND 5),
-    priority INTEGER NOT NULL DEFAULT 3 CHECK(priority BETWEEN 1 AND 5),
+    starred INTEGER NOT NULL DEFAULT 0 CHECK(starred IN (0, 1)),
     last_worked_on TEXT,
     current_step TEXT NOT NULL DEFAULT '',
     notes TEXT NOT NULL DEFAULT '',
@@ -125,6 +124,12 @@ const slugifyText = (text: string): string => {
 // Auto-migrate slug column on projects table
 try {
   db.exec("ALTER TABLE projects ADD COLUMN slug TEXT;");
+} catch {
+  // Column already exists
+}
+
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN starred INTEGER NOT NULL DEFAULT 0 CHECK(starred IN (0, 1));");
 } catch {
   // Column already exists
 }

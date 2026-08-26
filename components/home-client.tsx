@@ -24,8 +24,7 @@ const projectDefaults = {
   name: "",
   description: "",
   status: "idea" as ProjectStatus,
-  interest: "3",
-  priority: "3",
+  starred: false,
   current_step: "",
   notes: "",
 };
@@ -89,8 +88,6 @@ export function HomeClient({ initialRecommendations, projectOptions }: HomeClien
         captureType === "project"
           ? {
               ...projectForm,
-              interest: Number(projectForm.interest),
-              priority: Number(projectForm.priority),
             }
           : {
               title: itemForm.title,
@@ -181,9 +178,11 @@ export function HomeClient({ initialRecommendations, projectOptions }: HomeClien
                       <p className="mt-2 text-sm leading-6 text-slate-600 line-clamp-2">{project.description}</p>
                     ) : null}
                   </div>
-                  <div className="rounded-2xl bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm shrink-0">
-                    {project.interest}/5 interest · {project.priority}/5 priority
-                  </div>
+                  {project.starred ? (
+                    <div className="rounded-2xl bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-900 shadow-sm shrink-0">
+                      ★ Kiemelt
+                    </div>
+                  ) : null}
                 </div>
 
                 {total > 0 && (
@@ -264,23 +263,21 @@ export function HomeClient({ initialRecommendations, projectOptions }: HomeClien
                   value={projectForm.description}
                   onChange={(event) => setProjectForm((current) => ({ ...current, description: event.target.value }))}
                 />
-                <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <select className="select" value={projectForm.status} onChange={(event) => setProjectForm((current) => ({ ...current, status: event.target.value as ProjectStatus }))}>
                     <option value="active">Active</option>
                     <option value="paused">Paused</option>
                     <option value="idea">Idea</option>
                     <option value="archived">Archived</option>
                   </select>
-                  <select className="select" value={projectForm.interest} onChange={(event) => setProjectForm((current) => ({ ...current, interest: event.target.value }))}>
-                    {[1, 2, 3, 4, 5].map((value) => (
-                      <option key={value} value={value}>Interest {value}</option>
-                    ))}
-                  </select>
-                  <select className="select" value={projectForm.priority} onChange={(event) => setProjectForm((current) => ({ ...current, priority: event.target.value }))}>
-                    {[1, 2, 3, 4, 5].map((value) => (
-                      <option key={value} value={value}>Priority {value}</option>
-                    ))}
-                  </select>
+                  <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={projectForm.starred}
+                      onChange={(event) => setProjectForm((current) => ({ ...current, starred: event.target.checked }))}
+                    />
+                    Kiemelt projekt
+                  </label>
                 </div>
                 <input
                   className="input"

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { listProjects } from "@/lib/garden";
 import { statusLabel } from "@/lib/types";
+import { ProjectStarToggle } from "@/components/project-star-toggle";
 
 export const dynamic = "force-dynamic";
 
@@ -57,59 +58,58 @@ export default function ProjectsPage({ searchParams }: ProjectsPageProps) {
           const wantToWork = project.todos_count?.want_to_work;
 
           return (
-            <Link key={project.id} href={`/projects/${project.slug}`} className="panel block p-6 transition hover:-translate-y-0.5 hover:shadow-md">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">{statusLabel.project[project.status]}</p>
-                  <h2 className="mt-2 text-xl font-semibold text-slate-900">{project.name}</h2>
-                  {working ? (
-                    <div className="mt-2 inline-flex items-center gap-2 rounded-xl bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
-                      <span className="relative flex h-2 w-2">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600"></span>
-                      </span>
-                      ⚡ Dolgozol rajta: {working}
-                    </div>
-                  ) : wantToWork ? (
-                    <div className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
-                      🎯 Fókusz: {wantToWork}
-                    </div>
-                  ) : project.description ? (
-                    <p className="mt-2 text-sm leading-6 text-slate-600 line-clamp-2">{project.description}</p>
-                  ) : null}
-                </div>
-                <div className="rounded-2xl bg-emerald-50 px-3 py-2 text-right text-xs font-medium text-emerald-800 shrink-0">
-                  <div>Interest {project.interest}/5</div>
-                  <div>Priority {project.priority}/5</div>
-                </div>
-              </div>
-
-              {total > 0 && (
-                <div className="mt-4">
-                  <div className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
-                    <span>TODO lista haladás</span>
-                    <span>{done} / {total} kész ({Math.round((done / total) * 100)}%)</span>
-                  </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full bg-emerald-600"
-                      style={{ width: `${Math.round((done / total) * 100)}%` }}
-                    />
+            <div key={project.id} className="relative">
+              <ProjectStarToggle projectId={project.id} starred={project.starred} />
+              <Link href={`/projects/${project.slug}`} className="panel block p-6 transition hover:-translate-y-0.5 hover:shadow-md">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">{statusLabel.project[project.status]}</p>
+                    <h2 className="mt-2 text-xl font-semibold text-slate-900">{project.name}</h2>
+                    {working ? (
+                      <div className="mt-2 inline-flex items-center gap-2 rounded-xl bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+                        <span className="relative flex h-2 w-2">
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600"></span>
+                        </span>
+                        ⚡ Dolgozol rajta: {working}
+                      </div>
+                    ) : wantToWork ? (
+                      <div className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
+                        🎯 Fókusz: {wantToWork}
+                      </div>
+                    ) : project.description ? (
+                      <p className="mt-2 text-sm leading-6 text-slate-600 line-clamp-2">{project.description}</p>
+                    ) : null}
                   </div>
                 </div>
-              )}
 
-              <div className="mt-5 grid gap-3 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 sm:grid-cols-2">
-                <div>
-                  <p className="font-medium text-slate-900">Aktuális lépés</p>
-                  <p className="mt-1 line-clamp-1">{project.current_step || "Nincs megadva"}</p>
+                {total > 0 && (
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                      <span>TODO lista haladás</span>
+                      <span>{done} / {total} kész ({Math.round((done / total) * 100)}%)</span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className="h-full bg-emerald-600"
+                        style={{ width: `${Math.round((done / total) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-5 grid gap-3 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 sm:grid-cols-2">
+                  <div>
+                    <p className="font-medium text-slate-900">Aktuális lépés</p>
+                    <p className="mt-1 line-clamp-1">{project.current_step || "Nincs megadva"}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-slate-900">Legutóbb dolgoztál rajta</p>
+                    <p className="mt-1">{project.last_worked_on ? new Date(project.last_worked_on).toLocaleDateString("hu-HU") : "Érintetlen"}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium text-slate-900">Legutóbb dolgoztál rajta</p>
-                  <p className="mt-1">{project.last_worked_on ? new Date(project.last_worked_on).toLocaleDateString("hu-HU") : "Érintetlen"}</p>
-                </div>
-              </div>
-            </Link>
+              </Link>
+            </div>
           );
         })}
       </div>

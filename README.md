@@ -50,7 +50,7 @@ Tables created automatically on first run:
 - `GET/PUT/DELETE /api/experiments/[id]`
 - `GET /api/recommendations`
 
-`/api/suggestions` supports `?q=` and `?tag=` filters. `/api/recommendations` returns 3 project recommendations based on interest, priority, and how long it has been since you last worked on something.
+`/api/suggestions` supports `?q=` and `?tag=` filters. `/api/recommendations` returns 3 project recommendations based on starred status, project status, and how long it has been since you last worked on something.
 
 ## Notes
 

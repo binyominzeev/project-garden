@@ -17,8 +17,7 @@ export function ProjectDetailClient({ detail, projectOptions }: ProjectDetailCli
     name: detail.project.name,
     description: detail.project.description,
     status: detail.project.status,
-    interest: String(detail.project.interest),
-    priority: String(detail.project.priority),
+    starred: detail.project.starred,
     last_worked_on: detail.project.last_worked_on ? detail.project.last_worked_on.slice(0, 10) : "",
     current_step: detail.project.current_step,
     notes: detail.project.notes,
@@ -38,8 +37,6 @@ export function ProjectDetailClient({ detail, projectOptions }: ProjectDetailCli
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...projectForm,
-          interest: Number(projectForm.interest),
-          priority: Number(projectForm.priority),
           last_worked_on: projectForm.last_worked_on || null,
         }),
       });
@@ -143,10 +140,7 @@ export function ProjectDetailClient({ detail, projectOptions }: ProjectDetailCli
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{detail.project.name}</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">{detail.project.description || "No description yet."}</p>
             </div>
-            <div className="rounded-3xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-              <div>Interest: {detail.project.interest}/5</div>
-              <div>Priority: {detail.project.priority}/5</div>
-            </div>
+            {detail.project.starred ? <div className="rounded-3xl bg-amber-100 px-4 py-3 text-sm font-semibold text-amber-900">★ Kiemelt projekt</div> : null}
           </div>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
@@ -187,19 +181,21 @@ export function ProjectDetailClient({ detail, projectOptions }: ProjectDetailCli
           <form className="mt-6 space-y-4" onSubmit={updateProject}>
             <input className="input" value={projectForm.name} onChange={(event) => setProjectForm((current) => ({ ...current, name: event.target.value }))} required />
             <textarea className="textarea" value={projectForm.description} onChange={(event) => setProjectForm((current) => ({ ...current, description: event.target.value }))} />
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <select className="select" value={projectForm.status} onChange={(event) => setProjectForm((current) => ({ ...current, status: event.target.value as ProjectStatus }))}>
                 <option value="active">Active</option>
                 <option value="paused">Paused</option>
                 <option value="idea">Idea</option>
                 <option value="archived">Archived</option>
               </select>
-              <select className="select" value={projectForm.interest} onChange={(event) => setProjectForm((current) => ({ ...current, interest: event.target.value }))}>
-                {[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>Interest {value}</option>)}
-              </select>
-              <select className="select" value={projectForm.priority} onChange={(event) => setProjectForm((current) => ({ ...current, priority: event.target.value }))}>
-                {[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>Priority {value}</option>)}
-              </select>
+              <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={projectForm.starred}
+                  onChange={(event) => setProjectForm((current) => ({ ...current, starred: event.target.checked }))}
+                />
+                Kiemelt projekt
+              </label>
               <input className="input" type="date" value={projectForm.last_worked_on} onChange={(event) => setProjectForm((current) => ({ ...current, last_worked_on: event.target.value }))} />
             </div>
             <input className="input" placeholder="Current step" value={projectForm.current_step} onChange={(event) => setProjectForm((current) => ({ ...current, current_step: event.target.value }))} />

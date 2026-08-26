@@ -44,8 +44,7 @@ export type Project = {
   name: string;
   description: string;
   status: ProjectStatus;
-  interest: number;
-  priority: number;
+  starred: boolean;
   last_worked_on: string | null;
   current_step: string;
   notes: string;
