@@ -4,6 +4,9 @@ export default function NotFound() {
   return (
     <main className="shell">
       <div className="panel p-10 text-center">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-700 text-2xl text-white shadow-sm">
+          🌿
+        </div>
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">Lost in the garden?</p>
         <h1 className="mt-3 text-3xl font-semibold text-slate-900">That page doesn&apos;t exist.</h1>
         <p className="mt-3 text-sm text-slate-600">Try heading back to your home dashboard or the project list.</p>

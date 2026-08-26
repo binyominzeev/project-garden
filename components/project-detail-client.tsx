@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Project, ProjectDetail, ProjectStatus } from "@/lib/types";
 import { statusLabel } from "@/lib/types";
+import { ProjectTodoManager } from "@/components/project-todo-manager";
 
 type ProjectDetailClientProps = {
   detail: ProjectDetail;
@@ -47,7 +48,12 @@ export function ProjectDetailClient({ detail, projectOptions }: ProjectDetailCli
         throw new Error("Update failed");
       }
 
-      router.refresh();
+      const updated = await response.json();
+      if (updated.slug && updated.slug !== detail.project.slug) {
+        router.push(`/projects/${updated.slug}`);
+      } else {
+        router.refresh();
+      }
     } catch (error) {
       console.error(error);
     } finally {
@@ -160,6 +166,12 @@ export function ProjectDetailClient({ detail, projectOptions }: ProjectDetailCli
             </div>
           </div>
         </section>
+
+        <ProjectTodoManager
+          projectId={detail.project.id}
+          todos={detail.todos || []}
+          activeSession={detail.activeSession || null}
+        />
 
         <section className="panel p-6 sm:p-8">
           <div className="flex items-center justify-between gap-4">

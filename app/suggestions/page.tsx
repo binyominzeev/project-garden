@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import { SuggestionManager } from "@/components/suggestion-manager";
 import { listProjects, listSuggestions } from "@/lib/garden";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Suggestions",
+};
 
 type SuggestionsPageProps = {
   searchParams?: { q?: string; tag?: string };

@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import { IdeaManager } from "@/components/idea-manager";
 import { listIdeas, listProjects } from "@/lib/garden";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Ideas",
+};
 
 export default function IdeasPage() {
   return (

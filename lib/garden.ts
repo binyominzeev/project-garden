@@ -4,11 +4,15 @@ import type {
   ExperimentStatus,
   Idea,
   IdeaStatus,
+  MotivationStats,
   Project,
   ProjectDetail,
   ProjectStatus,
+  ProjectTodo,
   Suggestion,
   SuggestionStatus,
+  TodoStatus,
+  WorkSession,
 } from "@/lib/types";
 
 type ProjectInput = Partial<Project> & { name?: string };
@@ -23,6 +27,7 @@ type RecommendationOptions = {
 
 type ProjectRow = Omit<Project, "id" | "interest" | "priority"> & {
   id: number;
+  slug: string;
   interest: number;
   priority: number;
 };
@@ -39,14 +44,46 @@ type JoinedRow = {
   outcome?: string;
 };
 
+export function slugify(text: string): string {
+  return text
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9 -]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+export function generateUniqueSlug(name: string, excludeProjectId?: number): string {
+  const baseSlug = slugify(name) || "project";
+  let slug = baseSlug;
+  let counter = 1;
+  const checkStmt = excludeProjectId
+    ? db.prepare("SELECT id FROM projects WHERE slug = ? AND id != ?")
+    : db.prepare("SELECT id FROM projects WHERE slug = ?");
+
+  while (true) {
+    const existing = excludeProjectId ? checkStmt.get(slug, excludeProjectId) : checkStmt.get(slug);
+    if (!existing) {
+      return slug;
+    }
+    counter++;
+    slug = `${baseSlug}-${counter}`;
+  }
+}
+
 const insertProject = db.prepare(`
-  INSERT INTO projects (name, description, status, interest, priority, last_worked_on, current_step, notes, created_at, updated_at)
-  VALUES (@name, @description, @status, @interest, @priority, @last_worked_on, @current_step, @notes, @created_at, @updated_at)
+  INSERT INTO projects (slug, name, description, status, interest, priority, last_worked_on, current_step, notes, created_at, updated_at)
+  VALUES (@slug, @name, @description, @status, @interest, @priority, @last_worked_on, @current_step, @notes, @created_at, @updated_at)
 `);
 
 const updateProjectStatement = db.prepare(`
   UPDATE projects
-  SET name = @name,
+  SET slug = @slug,
+      name = @name,
       description = @description,
       status = @status,
       interest = @interest,
@@ -210,21 +247,56 @@ function mapExperiment(row: JoinedRow): Experiment {
 }
 
 export function listProjects(status?: string): Project[] {
+  const query = `
+    SELECT p.*,
+      COUNT(pt.id) as total_todos,
+      SUM(CASE WHEN pt.status = 'done' THEN 1 ELSE 0 END) as done_todos,
+      (SELECT title FROM project_todos WHERE project_id = p.id AND status = 'working' LIMIT 1) as working_todo,
+      (SELECT title FROM project_todos WHERE project_id = p.id AND status = 'want_to_work' LIMIT 1) as want_to_work_todo
+    FROM projects p
+    LEFT JOIN project_todos pt ON p.id = pt.project_id
+    ${status ? "WHERE p.status = ?" : ""}
+    GROUP BY p.id
+    ORDER BY p.updated_at DESC, p.interest DESC, p.priority DESC
+  `;
+
   const rows = status
-    ? db.prepare("SELECT * FROM projects WHERE status = ? ORDER BY updated_at DESC, interest DESC, priority DESC").all(status)
-    : db.prepare("SELECT * FROM projects ORDER BY updated_at DESC, interest DESC, priority DESC").all();
-  return (rows as ProjectRow[]).map(mapProject);
+    ? db.prepare(query).all(status)
+    : db.prepare(query).all();
+
+  return (rows as Array<ProjectRow & { total_todos: number; done_todos: number; working_todo?: string; want_to_work_todo?: string }>).map((row) => ({
+    ...mapProject(row),
+    todos_count: {
+      total: row.total_todos || 0,
+      done: row.done_todos || 0,
+      working: row.working_todo || undefined,
+      want_to_work: row.want_to_work_todo || undefined,
+    },
+  }));
 }
 
-export function getProject(id: number): Project | null {
-  const row = db.prepare("SELECT * FROM projects WHERE id = ?").get(id) as ProjectRow | undefined;
+export function getProject(idOrSlug: number | string): Project | null {
+  if (typeof idOrSlug === "number" || /^\d+$/.test(String(idOrSlug))) {
+    const numericId = Number(idOrSlug);
+    const row = (db.prepare("SELECT * FROM projects WHERE id = ? OR slug = ?").get(numericId, String(idOrSlug))) as ProjectRow | undefined;
+    return row ? mapProject(row) : null;
+  }
+  const row = db.prepare("SELECT * FROM projects WHERE slug = ?").get(String(idOrSlug)) as ProjectRow | undefined;
   return row ? mapProject(row) : null;
 }
 
 export function createProject(input: ProjectInput): Project {
   const timestamp = now();
+  const name = stringValue(input.name).slice(0, 160);
+
+  if (!name) {
+    throw new Error("Project name is required");
+  }
+
+  const slug = generateUniqueSlug(name);
   const payload = {
-    name: stringValue(input.name).slice(0, 160),
+    slug,
+    name,
     description: stringValue(input.description),
     status: normalizeProjectStatus(input.status),
     interest: clampRating(input.interest, 3),
@@ -236,21 +308,23 @@ export function createProject(input: ProjectInput): Project {
     updated_at: timestamp,
   };
 
-  if (!payload.name) {
-    throw new Error("Project name is required");
-  }
-
   const result = insertProject.run(payload);
   return getProject(Number(result.lastInsertRowid)) as Project;
 }
 
-export function updateProject(id: number, input: ProjectInput): Project | null {
-  const existing = getProject(id);
+export function updateProject(idOrSlug: number | string, input: ProjectInput): Project | null {
+  const existing = getProject(idOrSlug);
   if (!existing) return null;
 
+  const newName = stringValue(input.name, existing.name).slice(0, 160);
+  const slug = newName !== existing.name || !existing.slug
+    ? generateUniqueSlug(newName, existing.id)
+    : existing.slug;
+
   updateProjectStatement.run({
-    id,
-    name: stringValue(input.name, existing.name).slice(0, 160),
+    id: existing.id,
+    slug,
+    name: newName,
     description: stringValue(input.description, existing.description),
     status: normalizeProjectStatus(input.status ?? existing.status),
     interest: clampRating(input.interest ?? existing.interest, existing.interest),
@@ -264,15 +338,17 @@ export function updateProject(id: number, input: ProjectInput): Project | null {
     updated_at: now(),
   });
 
-  return getProject(id);
+  return getProject(existing.id);
 }
 
-export function deleteProject(id: number) {
-  return db.prepare("DELETE FROM projects WHERE id = ?").run(id).changes > 0;
+export function deleteProject(idOrSlug: number | string) {
+  const existing = getProject(idOrSlug);
+  if (!existing) return false;
+  return db.prepare("DELETE FROM projects WHERE id = ?").run(existing.id).changes > 0;
 }
 
-export function logProjectWork(id: number, input: { summary?: unknown; nextStep?: unknown }): Project | null {
-  const existing = getProject(id);
+export function logProjectWork(idOrSlug: number | string, input: { summary?: unknown; nextStep?: unknown }): Project | null {
+  const existing = getProject(idOrSlug);
   if (!existing) return null;
 
   const summary = stringValue(input.summary);
@@ -284,7 +360,8 @@ export function logProjectWork(id: number, input: { summary?: unknown; nextStep?
     : existing.notes;
 
   updateProjectStatement.run({
-    id,
+    id: existing.id,
+    slug: existing.slug,
     name: existing.name,
     description: existing.description,
     status: existing.status,
@@ -296,7 +373,7 @@ export function logProjectWork(id: number, input: { summary?: unknown; nextStep?
     updated_at: timestamp,
   });
 
-  return getProject(id);
+  return getProject(existing.id);
 }
 
 export function listIdeas(options: { projectId?: number } = {}): Idea[] {
@@ -504,15 +581,248 @@ export function deleteExperiment(id: number) {
   return db.prepare("DELETE FROM experiments WHERE id = ?").run(id).changes > 0;
 }
 
-export function getProjectDetail(id: number): ProjectDetail | null {
-  const project = getProject(id);
+export function getProjectTodos(projectId: number): ProjectTodo[] {
+  return db.prepare(`
+    SELECT * FROM project_todos
+    WHERE project_id = ?
+    ORDER BY CASE status
+      WHEN 'working' THEN 1
+      WHEN 'want_to_work' THEN 2
+      WHEN 'todo' THEN 3
+      WHEN 'done' THEN 4
+    END, updated_at DESC
+  `).all(projectId) as ProjectTodo[];
+}
+
+export function createProjectTodo(projectId: number, title: string): ProjectTodo {
+  const cleanTitle = stringValue(title).slice(0, 200);
+  if (!cleanTitle) {
+    throw new Error("Todo title is required");
+  }
+  const timestamp = now();
+  const res = db.prepare(`
+    INSERT INTO project_todos (project_id, title, status, created_at, updated_at)
+    VALUES (?, ?, 'todo', ?, ?)
+  `).run(projectId, cleanTitle, timestamp, timestamp);
+
+  db.prepare("UPDATE projects SET updated_at = ? WHERE id = ?").run(timestamp, projectId);
+
+  return db.prepare("SELECT * FROM project_todos WHERE id = ?").get(res.lastInsertRowid) as ProjectTodo;
+}
+
+function stopActiveWorkSessions() {
+  const timestamp = now();
+  const openSessions = db.prepare("SELECT * FROM work_sessions WHERE end_time IS NULL").all() as WorkSession[];
+  for (const session of openSessions) {
+    const duration = Math.max(1, Math.round((new Date(timestamp).getTime() - new Date(session.start_time).getTime()) / 1000));
+    db.prepare("UPDATE work_sessions SET end_time = ?, duration_seconds = ? WHERE id = ?")
+      .run(timestamp, duration, session.id);
+  }
+}
+
+function stopActiveWorkSessionsForTodo(todoId: number) {
+  const timestamp = now();
+  const openSessions = db.prepare("SELECT * FROM work_sessions WHERE todo_id = ? AND end_time IS NULL").all(todoId) as WorkSession[];
+  for (const session of openSessions) {
+    const duration = Math.max(1, Math.round((new Date(timestamp).getTime() - new Date(session.start_time).getTime()) / 1000));
+    db.prepare("UPDATE work_sessions SET end_time = ?, duration_seconds = ? WHERE id = ?")
+      .run(timestamp, duration, session.id);
+  }
+}
+
+export function updateProjectTodoStatus(projectId: number, todoId: number, status: TodoStatus): ProjectTodo | null {
+  const existing = db.prepare("SELECT * FROM project_todos WHERE id = ? AND project_id = ?").get(todoId, projectId) as ProjectTodo | undefined;
+  if (!existing) return null;
+
+  const timestamp = now();
+
+  if (status === "working") {
+    stopActiveWorkSessions();
+
+    db.prepare("UPDATE project_todos SET status = 'want_to_work', updated_at = ? WHERE project_id = ? AND status = 'working' AND id != ?")
+      .run(timestamp, projectId, todoId);
+
+    db.prepare(`
+      INSERT INTO work_sessions (project_id, todo_id, start_time, duration_seconds, notes, created_at)
+      VALUES (?, ?, ?, 0, '', ?)
+    `).run(projectId, todoId, timestamp, timestamp);
+
+    db.prepare("UPDATE projects SET last_worked_on = ?, current_step = ?, updated_at = ? WHERE id = ?")
+      .run(timestamp, existing.title, timestamp, projectId);
+
+    db.prepare("UPDATE project_todos SET status = 'working', completed_at = NULL, updated_at = ? WHERE id = ?")
+      .run(timestamp, todoId);
+  } else if (status === "done") {
+    stopActiveWorkSessionsForTodo(todoId);
+
+    db.prepare("UPDATE project_todos SET status = 'done', completed_at = ?, updated_at = ? WHERE id = ?")
+      .run(timestamp, timestamp, todoId);
+
+    db.prepare("UPDATE projects SET last_worked_on = ?, updated_at = ? WHERE id = ?")
+      .run(timestamp, timestamp, projectId);
+  } else {
+    stopActiveWorkSessionsForTodo(todoId);
+
+    db.prepare("UPDATE project_todos SET status = ?, completed_at = NULL, updated_at = ? WHERE id = ?")
+      .run(status, timestamp, todoId);
+  }
+
+  return db.prepare("SELECT * FROM project_todos WHERE id = ?").get(todoId) as ProjectTodo;
+}
+
+export function deleteProjectTodo(projectId: number, todoId: number): boolean {
+  stopActiveWorkSessionsForTodo(todoId);
+  return db.prepare("DELETE FROM project_todos WHERE id = ? AND project_id = ?").run(todoId, projectId).changes > 0;
+}
+
+export function getActiveWorkSession(projectId?: number): WorkSession | null {
+  const row = (projectId
+    ? db.prepare(`
+        SELECT ws.*, pt.title as todo_title, p.name as project_name, p.slug as project_slug
+        FROM work_sessions ws
+        LEFT JOIN project_todos pt ON ws.todo_id = pt.id
+        LEFT JOIN projects p ON ws.project_id = p.id
+        WHERE ws.project_id = ? AND ws.end_time IS NULL
+        ORDER BY ws.start_time DESC LIMIT 1
+      `).get(projectId)
+    : db.prepare(`
+        SELECT ws.*, pt.title as todo_title, p.name as project_name, p.slug as project_slug
+        FROM work_sessions ws
+        LEFT JOIN project_todos pt ON ws.todo_id = pt.id
+        LEFT JOIN projects p ON ws.project_id = p.id
+        WHERE ws.end_time IS NULL
+        ORDER BY ws.start_time DESC LIMIT 1
+      `).get()) as WorkSession | undefined;
+
+  return row || null;
+}
+
+export function stopWorkSession(sessionId?: number, notes = ""): WorkSession | null {
+  const timestamp = now();
+  const session = sessionId
+    ? (db.prepare("SELECT * FROM work_sessions WHERE id = ?").get(sessionId) as WorkSession | undefined)
+    : (db.prepare("SELECT * FROM work_sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1").get() as WorkSession | undefined);
+
+  if (!session || session.end_time) return null;
+
+  const duration = Math.max(1, Math.round((new Date(timestamp).getTime() - new Date(session.start_time).getTime()) / 1000));
+  db.prepare("UPDATE work_sessions SET end_time = ?, duration_seconds = ?, notes = ? WHERE id = ?").run(
+    timestamp,
+    duration,
+    notes || session.notes || "",
+    session.id
+  );
+
+  if (session.todo_id) {
+    const todo = db.prepare("SELECT status FROM project_todos WHERE id = ?").get(session.todo_id) as { status: string } | undefined;
+    if (todo && todo.status === "working") {
+      db.prepare("UPDATE project_todos SET status = 'want_to_work', updated_at = ? WHERE id = ?").run(timestamp, session.todo_id);
+    }
+  }
+
+  return db.prepare(`
+    SELECT ws.*, pt.title as todo_title, p.name as project_name, p.slug as project_slug
+    FROM work_sessions ws
+    LEFT JOIN project_todos pt ON ws.todo_id = pt.id
+    LEFT JOIN projects p ON ws.project_id = p.id
+    WHERE ws.id = ?
+  `).get(session.id) as WorkSession;
+}
+
+export function getMotivationStats(): MotivationStats {
+  const nowObj = new Date();
+  const todayStr = `${nowObj.getFullYear()}-${String(nowObj.getMonth() + 1).padStart(2, "0")}-${String(nowObj.getDate()).padStart(2, "0")}`;
+  const weekAgoObj = new Date(nowObj.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const weekAgoStr = weekAgoObj.toISOString();
+
+  const allSessions = db.prepare(`
+    SELECT ws.*, pt.title as todo_title, p.name as project_name, p.slug as project_slug
+    FROM work_sessions ws
+    LEFT JOIN project_todos pt ON ws.todo_id = pt.id
+    LEFT JOIN projects p ON ws.project_id = p.id
+    ORDER BY ws.start_time DESC
+  `).all() as WorkSession[];
+
+  let todayDurationSeconds = 0;
+  let weekDurationSeconds = 0;
+
+  for (const session of allSessions) {
+    let dur = session.duration_seconds;
+    if (!session.end_time) {
+      dur = Math.max(0, Math.round((nowObj.getTime() - new Date(session.start_time).getTime()) / 1000));
+    }
+
+    if (session.start_time.startsWith(todayStr)) {
+      todayDurationSeconds += dur;
+    }
+    if (session.start_time >= weekAgoStr) {
+      weekDurationSeconds += dur;
+    }
+  }
+
+  const todayCompleted = db.prepare("SELECT COUNT(*) as count FROM project_todos WHERE completed_at LIKE ?").get(`${todayStr}%`) as { count: number };
+  const weekCompleted = db.prepare("SELECT COUNT(*) as count FROM project_todos WHERE completed_at >= ?").get(weekAgoStr) as { count: number };
+
+  const activityDatesRows = db.prepare(`
+    SELECT DISTINCT substr(date, 1, 10) as day FROM (
+      SELECT completed_at as date FROM project_todos WHERE completed_at IS NOT NULL
+      UNION ALL
+      SELECT start_time as date FROM work_sessions
+    ) WHERE date IS NOT NULL AND date != ''
+    ORDER BY day DESC
+  `).all() as Array<{ day: string }>;
+
+  const dateSet = new Set(activityDatesRows.map((r) => r.day));
+  let streakDays = 0;
+
+  const checkDate = new Date(nowObj);
+  const checkTodayStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, "0")}-${String(checkDate.getDate()).padStart(2, "0")}`;
+
+  if (!dateSet.has(checkTodayStr)) {
+    checkDate.setDate(checkDate.getDate() - 1);
+  }
+
+  while (true) {
+    const dStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, "0")}-${String(checkDate.getDate()).padStart(2, "0")}`;
+    if (dateSet.has(dStr)) {
+      streakDays++;
+      checkDate.setDate(checkDate.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  const victoriesRows = db.prepare(`
+    SELECT pt.*, p.name as project_name,
+      COALESCE((SELECT SUM(ws.duration_seconds) FROM work_sessions ws WHERE ws.todo_id = pt.id), 0) as duration_seconds
+    FROM project_todos pt
+    LEFT JOIN projects p ON pt.project_id = p.id
+    WHERE pt.status = 'done'
+    ORDER BY pt.completed_at DESC LIMIT 20
+  `).all() as Array<ProjectTodo & { project_name?: string; duration_seconds?: number }>;
+
+  return {
+    todayDurationSeconds,
+    weekDurationSeconds,
+    todayCompletedCount: todayCompleted.count,
+    weekCompletedCount: weekCompleted.count,
+    streakDays,
+    recentVictories: victoriesRows,
+    recentSessions: allSessions.slice(0, 20),
+  };
+}
+
+export function getProjectDetail(idOrSlug: number | string): ProjectDetail | null {
+  const project = getProject(idOrSlug);
   if (!project) return null;
 
   return {
     project,
-    ideas: listIdeas({ projectId: id }),
-    suggestions: listSuggestions({ projectId: id }),
-    experiments: listExperiments(id),
+    todos: getProjectTodos(project.id),
+    activeSession: getActiveWorkSession(project.id),
+    ideas: listIdeas({ projectId: project.id }),
+    suggestions: listSuggestions({ projectId: project.id }),
+    experiments: listExperiments(project.id),
   };
 }
 

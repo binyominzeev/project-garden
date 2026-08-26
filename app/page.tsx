@@ -12,7 +12,8 @@ export default function HomePage() {
       <section className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
         <div className="panel overflow-hidden p-8">
           <div className="space-y-4">
-            <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-800">
+            <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-800">
+              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-700 text-[10px] text-white">🌿</span>
               Project Garden
             </span>
             <div className="space-y-3">

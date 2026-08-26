@@ -129,7 +129,7 @@ export function HomeClient({ initialRecommendations, projectOptions }: HomeClien
       router.refresh();
 
       if (captureType === "project") {
-        router.push(`/projects/${saved.id}`);
+        router.push(`/projects/${saved.slug || saved.id}`);
       }
     } catch (error) {
       console.error(error);
@@ -152,30 +152,68 @@ export function HomeClient({ initialRecommendations, projectOptions }: HomeClien
         </div>
 
         <div className="mt-6 grid gap-4">
-          {recommendations.map((project) => (
-            <Link key={project.id} href={`/projects/${project.id}`} className="rounded-3xl border border-emerald-900/10 bg-emerald-50/70 p-5 transition hover:bg-white">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">{statusLabel.project[project.status]}</p>
-                  <h3 className="mt-2 text-xl font-semibold text-slate-900">{project.name}</h3>
+          {recommendations.map((project) => {
+            const total = project.todos_count?.total || 0;
+            const done = project.todos_count?.done || 0;
+            const working = project.todos_count?.working;
+            const wantToWork = project.todos_count?.want_to_work;
+
+            return (
+              <Link key={project.id} href={`/projects/${project.id}`} className="rounded-3xl border border-emerald-900/10 bg-emerald-50/70 p-5 transition hover:bg-white">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">{statusLabel.project[project.status]}</p>
+                    <h3 className="mt-2 text-xl font-semibold text-slate-900">{project.name}</h3>
+
+                    {working ? (
+                      <div className="mt-2 inline-flex items-center gap-2 rounded-xl bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+                        <span className="relative flex h-2 w-2">
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600"></span>
+                        </span>
+                        ⚡ Dolgozol rajta: {working}
+                      </div>
+                    ) : wantToWork ? (
+                      <div className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
+                        🎯 Fókusz: {wantToWork}
+                      </div>
+                    ) : project.description ? (
+                      <p className="mt-2 text-sm leading-6 text-slate-600 line-clamp-2">{project.description}</p>
+                    ) : null}
+                  </div>
+                  <div className="rounded-2xl bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm shrink-0">
+                    {project.interest}/5 interest · {project.priority}/5 priority
+                  </div>
                 </div>
-                <div className="rounded-2xl bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm">
-                  {project.interest}/5 interest · {project.priority}/5 priority
+
+                {total > 0 && (
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                      <span>TODO haladás</span>
+                      <span>{done} / {total} kész ({Math.round((done / total) * 100)}%)</span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-white/80 border border-slate-100">
+                      <div
+                        className="h-full bg-emerald-600 transition-all duration-300"
+                        style={{ width: `${Math.round((done / total) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-4 grid gap-3 rounded-2xl bg-white/80 p-4 text-sm text-slate-600 sm:grid-cols-2">
+                  <div>
+                    <p className="font-medium text-slate-900">Aktuális lépés</p>
+                    <p className="mt-1 line-clamp-1">{project.current_step || "Válassz egy apró következő lépést"}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-slate-900">Legutóbb dolgoztál rajta</p>
+                    <p className="mt-1">{project.last_worked_on ? new Date(project.last_worked_on).toLocaleDateString("hu-HU") : "Első munkamenetre vár"}</p>
+                  </div>
                 </div>
-              </div>
-              <p className="mt-3 text-sm leading-6 text-slate-600">{project.description || "No description yet — maybe follow the thread and write one down."}</p>
-              <div className="mt-4 grid gap-3 rounded-2xl bg-white/80 p-4 text-sm text-slate-600 sm:grid-cols-2">
-                <div>
-                  <p className="font-medium text-slate-900">Current step</p>
-                  <p className="mt-1">{project.current_step || "Pick the tiniest next move"}</p>
-                </div>
-                <div>
-                  <p className="font-medium text-slate-900">Last worked on</p>
-                  <p className="mt-1">{project.last_worked_on ? new Date(project.last_worked_on).toLocaleDateString() : "Needs its first session"}</p>
-                </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
 
           {recommendations.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-emerald-900/10 px-6 py-10 text-center text-sm text-slate-600">

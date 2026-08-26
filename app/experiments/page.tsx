@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import { ExperimentManager } from "@/components/experiment-manager";
 import { listExperiments, listProjects } from "@/lib/garden";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Experiments",
+};
 
 export default function ExperimentsPage() {
   return (

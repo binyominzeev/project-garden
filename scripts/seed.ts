@@ -137,6 +137,19 @@ function getProjectIdMap() {
   return new Map(rows.map((row) => [row.name, row.id]));
 }
 
+function slugify(text: string): string {
+  return text
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9 -]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function main() {
   db.exec(`
     DELETE FROM experiments;
@@ -147,8 +160,8 @@ function main() {
   `);
 
   const insertProject = db.prepare(`
-    INSERT INTO projects (name, description, status, interest, priority, last_worked_on, current_step, notes, created_at, updated_at)
-    VALUES (@name, @description, @status, @interest, @priority, @last_worked_on, @current_step, @notes, @created_at, @updated_at)
+    INSERT INTO projects (slug, name, description, status, interest, priority, last_worked_on, current_step, notes, created_at, updated_at)
+    VALUES (@slug, @name, @description, @status, @interest, @priority, @last_worked_on, @current_step, @notes, @created_at, @updated_at)
   `);
 
   const insertIdea = db.prepare(`
@@ -171,6 +184,7 @@ function main() {
       const createdAt = project.last_worked_on ?? daysAgo(30);
       insertProject.run({
         ...project,
+        slug: slugify(project.name),
         created_at: createdAt,
         updated_at: project.last_worked_on ?? createdAt,
       });
