@@ -11,6 +11,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       issuer: process.env.POCKET_ID_ISSUER ?? "https://auth.binjomin.hu",
       clientId: process.env.POCKET_ID_CLIENT_ID,
       clientSecret: process.env.POCKET_ID_CLIENT_SECRET,
+      checks: ["pkce", "state"],
     },
   ],
   pages: {
