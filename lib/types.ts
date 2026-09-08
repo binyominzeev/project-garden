@@ -60,8 +60,13 @@ export type Idea = {
   project_id: number | null;
   project_name?: string | null;
   status: IdeaStatus;
+  starred: boolean;
   created_at: string;
 };
+
+export type Recommendation =
+  | (Project & { type: "project" })
+  | (Idea & { type: "idea" });
 
 export type Suggestion = {
   id: number;

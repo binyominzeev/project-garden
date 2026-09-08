@@ -5,8 +5,8 @@ export function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const exclude = (searchParams.get("exclude") ?? "")
     .split(",")
-    .map((value) => Number(value.trim()))
-    .filter((value) => Number.isFinite(value) && value > 0);
+    .map((value) => value.trim())
+    .filter(Boolean);
 
   return NextResponse.json(getProjectRecommendations({ excludeIds: exclude }));
 }

@@ -9,6 +9,7 @@ import type {
   ProjectDetail,
   ProjectStatus,
   ProjectTodo,
+  Recommendation,
   Suggestion,
   SuggestionStatus,
   TodoStatus,
@@ -21,7 +22,7 @@ type SuggestionInput = Partial<Suggestion> & { title?: string; tags?: string[] |
 type ExperimentInput = Partial<Experiment> & { title?: string };
 
 type RecommendationOptions = {
-  excludeIds?: number[];
+  excludeIds?: string[];
   limit?: number;
 };
 
@@ -41,6 +42,7 @@ type JoinedRow = {
   created_at: string;
   tags?: string;
   outcome?: string;
+  starred?: number;
 };
 
 export function slugify(text: string): string {
@@ -94,8 +96,8 @@ const updateProjectStatement = db.prepare(`
 `);
 
 const insertIdea = db.prepare(`
-  INSERT INTO ideas (title, description, project_id, status, created_at)
-  VALUES (@title, @description, @project_id, @status, @created_at)
+  INSERT INTO ideas (title, description, project_id, status, starred, created_at)
+  VALUES (@title, @description, @project_id, @status, @starred, @created_at)
 `);
 
 const updateIdeaStatement = db.prepare(`
@@ -103,7 +105,8 @@ const updateIdeaStatement = db.prepare(`
   SET title = @title,
       description = @description,
       project_id = @project_id,
-      status = @status
+      status = @status,
+      starred = @starred
   WHERE id = @id
 `);
 
@@ -222,6 +225,7 @@ function mapIdea(row: JoinedRow): Idea {
     project_id: row.project_id,
     project_name: row.project_name,
     status: normalizeIdeaStatus(row.status),
+    starred: Boolean(row.starred),
     created_at: row.created_at,
   };
 }
@@ -386,7 +390,7 @@ export function listIdeas(options: { projectId?: number } = {}): Idea[] {
     FROM ideas
     LEFT JOIN projects ON ideas.project_id = projects.id
     ${projectId !== undefined ? "WHERE ideas.project_id = ?" : ""}
-    ORDER BY ideas.created_at DESC
+    ORDER BY ideas.starred DESC, ideas.created_at DESC
   `).all(...(projectId !== undefined ? [projectId] : [])) as JoinedRow[];
   return rows.map(mapIdea);
 }
@@ -407,6 +411,7 @@ export function createIdea(input: IdeaInput): Idea {
     description: stringValue(input.description),
     project_id: normalizeProjectId(input.project_id),
     status: normalizeIdeaStatus(input.status),
+    starred: normalizeBoolean(input.starred, false) ? 1 : 0,
     created_at: now(),
   };
 
@@ -428,6 +433,7 @@ export function updateIdea(id: number, input: IdeaInput): Idea | null {
     description: stringValue(input.description, existing.description),
     project_id: input.project_id === null ? null : normalizeProjectId(input.project_id) ?? existing.project_id,
     status: normalizeIdeaStatus(input.status ?? existing.status),
+    starred: normalizeBoolean(input.starred, existing.starred) ? 1 : 0,
   });
 
   return getIdea(id);
@@ -829,25 +835,34 @@ export function getProjectDetail(idOrSlug: number | string): ProjectDetail | nul
   };
 }
 
-export function getProjectRecommendations(options: RecommendationOptions = {}): Project[] {
+export function getProjectRecommendations(options: RecommendationOptions = {}): Recommendation[] {
   const { excludeIds = [], limit = 3 } = options;
   const excluded = new Set(excludeIds);
-  const candidates = listProjects().filter((project) => project.status !== "archived" && !excluded.has(project.id));
+  const projects = listProjects()
+    .filter((project) => project.status !== "archived" && !excluded.has(`project:${project.id}`))
+    .map((project) => ({ ...project, type: "project" as const }));
+  const ideas = listIdeas()
+    .filter((idea) => idea.status !== "discarded" && !excluded.has(`idea:${idea.id}`))
+    .map((idea) => ({ ...idea, type: "idea" as const }));
+  const candidates = [...projects, ...ideas];
 
   const ranked = candidates
-    .map((project) => {
-      const daysSinceWorked = project.last_worked_on
-        ? Math.floor((Date.now() - new Date(project.last_worked_on).getTime()) / (1000 * 60 * 60 * 24))
+    .map((item) => {
+      const lastWorkedOn = item.type === "project" ? item.last_worked_on : null;
+      const daysSinceWorked = lastWorkedOn
+        ? Math.floor((Date.now() - new Date(lastWorkedOn).getTime()) / (1000 * 60 * 60 * 24))
         : 45;
       const idleBonus = Math.min(Math.max(daysSinceWorked, 0), 45) * 0.08;
-      const starredBonus = project.starred ? 4.2 : 0;
-      const statusBonus = project.status === "active" ? 1.5 : project.status === "idea" ? 1.1 : 0.4;
+      const starredBonus = item.starred ? 4.2 : 0;
+      const statusBonus = item.type === "project"
+        ? item.status === "active" ? 1.5 : item.status === "idea" ? 1.1 : 0.4
+        : item.status === "idea" ? 1.1 : 0.4;
       return {
-        project,
+        item,
         score: idleBonus + starredBonus + statusBonus,
       };
     })
-    .sort((left, right) => right.score - left.score || right.project.updated_at.localeCompare(left.project.updated_at));
+    .sort((left, right) => right.score - left.score || right.item.created_at.localeCompare(left.item.created_at));
 
-  return ranked.slice(0, limit).map((item) => item.project);
+  return ranked.slice(0, limit).map((item) => item.item);
 }

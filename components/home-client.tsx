@@ -3,13 +3,13 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { ExperimentStatus, IdeaStatus, Project, ProjectStatus, SuggestionStatus } from "@/lib/types";
+import type { ExperimentStatus, IdeaStatus, Project, ProjectStatus, Recommendation, SuggestionStatus } from "@/lib/types";
 import { statusLabel } from "@/lib/types";
 
 type CaptureType = "project" | "idea" | "suggestion" | "experiment";
 
 type HomeClientProps = {
-  initialRecommendations: Project[];
+  initialRecommendations: Recommendation[];
   projectOptions: Project[];
 };
 
@@ -41,7 +41,7 @@ const itemDefaults = {
 export function HomeClient({ initialRecommendations, projectOptions }: HomeClientProps) {
   const router = useRouter();
   const [recommendations, setRecommendations] = useState(initialRecommendations);
-  const [seenIds, setSeenIds] = useState(initialRecommendations.map((project) => project.id));
+  const [seenIds, setSeenIds] = useState(initialRecommendations.map((item) => `${item.type}:${item.id}`));
   const [captureType, setCaptureType] = useState<CaptureType | null>(null);
   const [projectForm, setProjectForm] = useState(projectDefaults);
   const [itemForm, setItemForm] = useState(itemDefaults);
@@ -60,7 +60,7 @@ export function HomeClient({ initialRecommendations, projectOptions }: HomeClien
       if (!response.ok) {
         throw new Error("Could not load recommendations");
       }
-      let data: Project[] = await response.json();
+      let data: Recommendation[] = await response.json();
 
       if (data.length === 0) {
         response = await fetch("/api/recommendations", { cache: "no-store" });
@@ -69,7 +69,7 @@ export function HomeClient({ initialRecommendations, projectOptions }: HomeClien
       }
 
       setRecommendations(data);
-      setSeenIds(data.map((project) => project.id));
+      setSeenIds(data.map((item) => `${item.type}:${item.id}`));
     } catch (error) {
       console.error(error);
     } finally {
@@ -149,14 +149,31 @@ export function HomeClient({ initialRecommendations, projectOptions }: HomeClien
         </div>
 
         <div className="mt-6 grid gap-4">
-          {recommendations.map((project) => {
+          {recommendations.map((item) => {
+            if (item.type === "idea") {
+              return (
+                <Link key={`idea:${item.id}`} href="/ideas" className="rounded-3xl border border-amber-900/10 bg-amber-50/70 p-5 transition hover:bg-white">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">Idea</p>
+                      <h3 className="mt-2 text-xl font-semibold text-slate-900">{item.title}</h3>
+                      {item.description ? <p className="mt-2 text-sm leading-6 text-slate-600 line-clamp-2">{item.description}</p> : null}
+                      <p className="mt-4 text-sm text-slate-600">{item.project_name ? `Kapcsolódó projekt: ${item.project_name}` : "Önálló idea"}</p>
+                    </div>
+                    {item.starred ? <div className="shrink-0 rounded-2xl bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-900 shadow-sm">★ Kiemelt</div> : null}
+                  </div>
+                </Link>
+              );
+            }
+
+            const project = item;
             const total = project.todos_count?.total || 0;
             const done = project.todos_count?.done || 0;
             const working = project.todos_count?.working;
             const wantToWork = project.todos_count?.want_to_work;
 
             return (
-              <Link key={project.id} href={`/projects/${project.id}`} className="rounded-3xl border border-emerald-900/10 bg-emerald-50/70 p-5 transition hover:bg-white">
+              <Link key={`project:${project.id}`} href={`/projects/${project.id}`} className="rounded-3xl border border-emerald-900/10 bg-emerald-50/70 p-5 transition hover:bg-white">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">{statusLabel.project[project.status]}</p>

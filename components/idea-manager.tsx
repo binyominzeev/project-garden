@@ -79,6 +79,20 @@ export function IdeaManager({ initialIdeas, projectOptions }: IdeaManagerProps) 
     }
   }
 
+  async function toggleStar(idea: Idea) {
+    try {
+      const response = await fetch(`/api/ideas/${idea.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ starred: !idea.starred }),
+      });
+      if (!response.ok) throw new Error("Star update failed");
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
   return (
     <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
       <section className="panel p-6 sm:p-8">
@@ -130,6 +144,9 @@ export function IdeaManager({ initialIdeas, projectOptions }: IdeaManagerProps) 
                     <h3 className="mt-3 text-xl font-semibold text-slate-900">{idea.title}</h3>
                   </div>
                   <div className="flex gap-2">
+                    <button type="button" className="button-ghost text-amber-700 hover:bg-amber-50 hover:text-amber-800" onClick={() => toggleStar(idea)} aria-label={idea.starred ? "Kiemelés törlése" : "Idea kiemelése"}>
+                      {idea.starred ? "★" : "☆"}
+                    </button>
                     <button type="button" className="button-ghost" onClick={() => startEditing(idea)}>Edit</button>
                     <button type="button" className="button-ghost text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => removeIdea(idea.id)}>Delete</button>
                   </div>

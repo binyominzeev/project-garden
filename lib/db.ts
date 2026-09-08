@@ -27,6 +27,7 @@ db.exec(`
     description TEXT NOT NULL DEFAULT '',
     project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
     status TEXT NOT NULL CHECK(status IN ('idea', 'linked', 'converted', 'discarded')) DEFAULT 'idea',
+    starred INTEGER NOT NULL DEFAULT 0 CHECK(starred IN (0, 1)),
     created_at TEXT NOT NULL
   );
 
@@ -130,6 +131,12 @@ try {
 
 try {
   db.exec("ALTER TABLE projects ADD COLUMN starred INTEGER NOT NULL DEFAULT 0 CHECK(starred IN (0, 1));");
+} catch {
+  // Column already exists
+}
+
+try {
+  db.exec("ALTER TABLE ideas ADD COLUMN starred INTEGER NOT NULL DEFAULT 0 CHECK(starred IN (0, 1));");
 } catch {
   // Column already exists
 }

@@ -130,6 +130,23 @@ export function ProjectDetailClient({ detail, projectOptions }: ProjectDetailCli
     }
   }
 
+  async function toggleStar() {
+    const starred = !projectForm.starred;
+    setProjectForm((current) => ({ ...current, starred }));
+    try {
+      const response = await fetch(`/api/projects/${detail.project.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ starred }),
+      });
+      if (!response.ok) throw new Error("Star update failed");
+      router.refresh();
+    } catch (error) {
+      setProjectForm((current) => ({ ...current, starred: !starred }));
+      console.error(error);
+    }
+  }
+
   return (
     <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
       <div className="space-y-6">
@@ -140,7 +157,9 @@ export function ProjectDetailClient({ detail, projectOptions }: ProjectDetailCli
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{detail.project.name}</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">{detail.project.description || "No description yet."}</p>
             </div>
-            {detail.project.starred ? <div className="rounded-3xl bg-amber-100 px-4 py-3 text-sm font-semibold text-amber-900">★ Kiemelt projekt</div> : null}
+            <button type="button" onClick={toggleStar} aria-label={projectForm.starred ? "Kiemelés törlése" : "Projekt kiemelése"} aria-pressed={projectForm.starred} className={projectForm.starred ? "button-secondary border-amber-300 bg-amber-100 text-amber-900" : "button-secondary"}>
+              {projectForm.starred ? "★ Kiemelt projekt" : "☆ Projekt kiemelése"}
+            </button>
           </div>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
