@@ -61,6 +61,7 @@ export type Idea = {
   project_name?: string | null;
   status: IdeaStatus;
   starred: boolean;
+  completed: boolean;
   created_at: string;
 };
 

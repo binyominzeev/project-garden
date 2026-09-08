@@ -93,29 +93,62 @@ export function IdeaManager({ initialIdeas, projectOptions }: IdeaManagerProps) 
     }
   }
 
+  async function toggleCompleted(idea: Idea) {
+    try {
+      const response = await fetch(`/api/ideas/${idea.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completed: !idea.completed }),
+      });
+      if (!response.ok) throw new Error("Completion update failed");
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  const activeIdeas = initialIdeas.filter((idea) => !idea.completed);
+  const completedIdeas = initialIdeas.filter((idea) => idea.completed);
+
   return (
     <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-      <section className="panel p-6 sm:p-8">
-        <h2 className="text-xl font-semibold text-slate-900">New idea</h2>
-        <form className="mt-6 space-y-4" onSubmit={createIdea}>
-          <input className="input" placeholder="Idea title" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} required />
-          <textarea className="textarea" placeholder="Describe the spark" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
-          <select className="select" value={form.project_id} onChange={(event) => setForm((current) => ({ ...current, project_id: event.target.value }))}>
-            <option value="">Not linked to a project</option>
-            {projectOptions.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-          </select>
-          <select className="select" value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as IdeaStatus }))}>
-            <option value="idea">Idea</option>
-            <option value="linked">Linked</option>
-            <option value="converted">Converted</option>
-            <option value="discarded">Discarded</option>
-          </select>
-          <button type="submit" className="button-primary" disabled={submitting}>{submitting ? "Saving..." : "Save idea"}</button>
-        </form>
-      </section>
+      <div className="space-y-6">
+        <section className="panel p-6 sm:p-8">
+          <h2 className="text-xl font-semibold text-slate-900">New idea</h2>
+          <form className="mt-6 space-y-4" onSubmit={createIdea}>
+            <input className="input" placeholder="Idea title" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} required />
+            <textarea className="textarea" placeholder="Describe the spark" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
+            <select className="select" value={form.project_id} onChange={(event) => setForm((current) => ({ ...current, project_id: event.target.value }))}>
+              <option value="">Not linked to a project</option>
+              {projectOptions.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+            </select>
+            <select className="select" value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as IdeaStatus }))}>
+              <option value="idea">Idea</option>
+              <option value="linked">Linked</option>
+              <option value="converted">Converted</option>
+              <option value="discarded">Discarded</option>
+            </select>
+            <button type="submit" className="button-primary" disabled={submitting}>{submitting ? "Saving..." : "Save idea"}</button>
+          </form>
+        </section>
+
+        {completedIdeas.length > 0 ? (
+          <section className="panel p-5">
+            <h2 className="text-base font-semibold text-slate-900">Teljesített ideák</h2>
+            <div className="mt-3 space-y-2">
+              {completedIdeas.map((idea) => (
+                <label key={idea.id} className="flex items-start gap-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-slate-600">
+                  <input type="checkbox" checked onChange={() => toggleCompleted(idea)} className="mt-0.5 h-4 w-4 accent-emerald-700" aria-label={`${idea.title} teljesítése`} />
+                  <span className="line-clamp-2 line-through">{idea.title}</span>
+                </label>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </div>
 
       <section className="space-y-4">
-        {initialIdeas.map((idea) => (
+        {activeIdeas.map((idea) => (
           <article key={idea.id} className="panel p-6">
             {editingId === idea.id ? (
               <div className="space-y-4">
@@ -144,6 +177,9 @@ export function IdeaManager({ initialIdeas, projectOptions }: IdeaManagerProps) 
                     <h3 className="mt-3 text-xl font-semibold text-slate-900">{idea.title}</h3>
                   </div>
                   <div className="flex gap-2">
+                    <label className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-emerald-700 hover:bg-emerald-50" title="Teljesített idea">
+                      <input type="checkbox" checked={idea.completed} onChange={() => toggleCompleted(idea)} className="h-4 w-4 accent-emerald-700" aria-label={`${idea.title} teljesítése`} />
+                    </label>
                     <button type="button" className="button-ghost text-amber-700 hover:bg-amber-50 hover:text-amber-800" onClick={() => toggleStar(idea)} aria-label={idea.starred ? "Kiemelés törlése" : "Idea kiemelése"}>
                       {idea.starred ? "★" : "☆"}
                     </button>
@@ -160,7 +196,7 @@ export function IdeaManager({ initialIdeas, projectOptions }: IdeaManagerProps) 
           </article>
         ))}
 
-        {initialIdeas.length === 0 ? <div className="panel p-8 text-center text-sm text-slate-600">No ideas saved yet.</div> : null}
+        {activeIdeas.length === 0 ? <div className="panel p-8 text-center text-sm text-slate-600">Nincs aktív idea.</div> : null}
       </section>
     </div>
   );

@@ -43,6 +43,7 @@ type JoinedRow = {
   tags?: string;
   outcome?: string;
   starred?: number;
+  completed?: number;
 };
 
 export function slugify(text: string): string {
@@ -96,8 +97,8 @@ const updateProjectStatement = db.prepare(`
 `);
 
 const insertIdea = db.prepare(`
-  INSERT INTO ideas (title, description, project_id, status, starred, created_at)
-  VALUES (@title, @description, @project_id, @status, @starred, @created_at)
+  INSERT INTO ideas (title, description, project_id, status, starred, completed, created_at)
+  VALUES (@title, @description, @project_id, @status, @starred, @completed, @created_at)
 `);
 
 const updateIdeaStatement = db.prepare(`
@@ -106,7 +107,8 @@ const updateIdeaStatement = db.prepare(`
       description = @description,
       project_id = @project_id,
       status = @status,
-      starred = @starred
+      starred = @starred,
+      completed = @completed
   WHERE id = @id
 `);
 
@@ -226,6 +228,7 @@ function mapIdea(row: JoinedRow): Idea {
     project_name: row.project_name,
     status: normalizeIdeaStatus(row.status),
     starred: Boolean(row.starred),
+    completed: Boolean(row.completed),
     created_at: row.created_at,
   };
 }
@@ -412,6 +415,7 @@ export function createIdea(input: IdeaInput): Idea {
     project_id: normalizeProjectId(input.project_id),
     status: normalizeIdeaStatus(input.status),
     starred: normalizeBoolean(input.starred, false) ? 1 : 0,
+    completed: normalizeBoolean(input.completed, false) ? 1 : 0,
     created_at: now(),
   };
 
@@ -434,6 +438,7 @@ export function updateIdea(id: number, input: IdeaInput): Idea | null {
     project_id: input.project_id === null ? null : normalizeProjectId(input.project_id) ?? existing.project_id,
     status: normalizeIdeaStatus(input.status ?? existing.status),
     starred: normalizeBoolean(input.starred, existing.starred) ? 1 : 0,
+    completed: normalizeBoolean(input.completed, existing.completed) ? 1 : 0,
   });
 
   return getIdea(id);
@@ -842,7 +847,7 @@ export function getProjectRecommendations(options: RecommendationOptions = {}): 
     .filter((project) => project.status !== "archived" && !excluded.has(`project:${project.id}`))
     .map((project) => ({ ...project, type: "project" as const }));
   const ideas = listIdeas()
-    .filter((idea) => idea.status !== "discarded" && !excluded.has(`idea:${idea.id}`))
+    .filter((idea) => idea.status !== "discarded" && !idea.completed && !excluded.has(`idea:${idea.id}`))
     .map((idea) => ({ ...idea, type: "idea" as const }));
   const candidates = [...projects, ...ideas];
 
