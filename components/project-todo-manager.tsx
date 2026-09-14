@@ -518,6 +518,12 @@ export function ProjectTodoManager({ projectId, todos, activeSession }: ProjectT
                         placeholder="Komment hozzáadása..."
                         value={commentDrafts[todo.id] || ""}
                         onChange={(event) => updateCommentDraft(todo.id, event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" && !event.shiftKey) {
+                            event.preventDefault();
+                            void handleAddComment(todo.id);
+                          }
+                        }}
                         maxLength={2000}
                       />
                       <button
