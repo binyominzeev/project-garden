@@ -110,11 +110,37 @@ function formatTimer(seconds: number) {
   return `${pad(mins)}:${pad(secs)}`;
 }
 
+function renderCommentBody(body: string) {
+  const parts = body.split(/(https?:\/\/[^\s]+)/g);
+  return parts.map((part, index) => {
+    if (/^https?:\/\//.test(part)) {
+      const trailingPunctuation = part.match(/[),.!?:;]+$/)?.[0] || "";
+      const url = trailingPunctuation ? part.slice(0, -trailingPunctuation.length) : part;
+      return (
+        <span key={`${part}-${index}`}>
+          <a href={url} target="_blank" rel="noreferrer" className="font-medium text-emerald-700 underline decoration-emerald-300 underline-offset-2 hover:text-emerald-900">
+            {url}
+          </a>
+          {trailingPunctuation}
+        </span>
+      );
+    }
+    return <span key={`${part}-${index}`}>{part}</span>;
+  });
+}
+
 export function ProjectTodoManager({ projectId, todos, activeSession }: ProjectTodoManagerProps) {
   const router = useRouter();
   const [newTitle, setNewTitle] = useState("");
   const [adding, setAdding] = useState(false);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [savingTitleId, setSavingTitleId] = useState<number | null>(null);
+  const [commentDrafts, setCommentDrafts] = useState<Record<number, string>>({});
+  const [commentErrors, setCommentErrors] = useState<Record<number, string>>({});
+  const [submittingCommentId, setSubmittingCommentId] = useState<number | null>(null);
+  const [deletingCommentId, setDeletingCommentId] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [celebrationMessage, setCelebrationMessage] = useState<string | null>(null);
 
@@ -183,6 +209,82 @@ export function ProjectTodoManager({ projectId, todos, activeSession }: ProjectT
       console.error(err);
     } finally {
       setUpdatingId(null);
+    }
+  }
+
+  function startEditingTodo(todoId: number, title: string) {
+    setEditingId(todoId);
+    setEditTitle(title);
+  }
+
+  async function handleSaveTitle(todoId: number) {
+    if (!editTitle.trim() || savingTitleId !== null) return;
+    setSavingTitleId(todoId);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/todos/${todoId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: editTitle }),
+      });
+      if (!res.ok) throw new Error("A feladat mentése nem sikerült");
+      setEditingId(null);
+      router.refresh();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingTitleId(null);
+    }
+  }
+
+  function updateCommentDraft(todoId: number, value: string) {
+    setCommentDrafts((current) => ({ ...current, [todoId]: value }));
+  }
+
+  async function handleAddComment(todoId: number) {
+    const body = commentDrafts[todoId] || "";
+    if (!body.trim() || submittingCommentId !== null) return;
+    setSubmittingCommentId(todoId);
+    setCommentErrors((current) => ({ ...current, [todoId]: "" }));
+    try {
+      const res = await fetch(`/api/projects/${projectId}/todos/${todoId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body }),
+      });
+      if (!res.ok) {
+        const result = await res.json().catch(() => null);
+        throw new Error(result?.error || "A komment mentése nem sikerült");
+      }
+      setCommentDrafts((current) => ({ ...current, [todoId]: "" }));
+      router.refresh();
+    } catch (err) {
+      setCommentErrors((current) => ({
+        ...current,
+        [todoId]: err instanceof Error ? err.message : "A komment mentése nem sikerült",
+      }));
+    } finally {
+      setSubmittingCommentId(null);
+    }
+  }
+
+  async function handleDeleteComment(todoId: number, commentId: number) {
+    if (!window.confirm("Biztosan törlöd ezt a kommentet?")) return;
+    setDeletingCommentId(commentId);
+    setCommentErrors((current) => ({ ...current, [todoId]: "" }));
+    try {
+      const res = await fetch(`/api/projects/${projectId}/todos/${todoId}/comments/${commentId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const result = await res.json().catch(() => null);
+        throw new Error(result?.error || "A komment törlése nem sikerült");
+      }
+      router.refresh();
+    } catch (err) {
+      setCommentErrors((current) => ({
+        ...current,
+        [todoId]: err instanceof Error ? err.message : "A komment törlése nem sikerült",
+      }));
+    } finally {
+      setDeletingCommentId(null);
     }
   }
 
@@ -337,13 +439,40 @@ export function ProjectTodoManager({ projectId, todos, activeSession }: ProjectT
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
-                      <p
-                        className={`text-base font-medium ${
-                          isDone ? "text-slate-500 line-through" : "text-slate-900"
-                        }`}
-                      >
-                        {todo.title}
-                      </p>
+                      {editingId === todo.id ? (
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <input
+                            autoFocus
+                            value={editTitle}
+                            onChange={(event) => setEditTitle(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") void handleSaveTitle(todo.id);
+                              if (event.key === "Escape") setEditingId(null);
+                            }}
+                            className="input flex-1"
+                            maxLength={200}
+                          />
+                          <div className="flex gap-2">
+                            <button type="button" onClick={() => void handleSaveTitle(todo.id)} disabled={savingTitleId === todo.id} className="button-primary text-xs">
+                              {savingTitleId === todo.id ? "Mentés..." : "Mentés"}
+                            </button>
+                            <button type="button" onClick={() => setEditingId(null)} className="button-secondary text-xs">
+                              Mégse
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => startEditingTodo(todo.id, todo.title)}
+                          className={`text-left text-base font-medium hover:text-emerald-700 ${
+                            isDone ? "text-slate-500 line-through" : "text-slate-900"
+                          }`}
+                          title="Feladat szerkesztése"
+                        >
+                          {todo.title}
+                        </button>
+                      )}
                       {todo.completed_at ? (
                         <p className="mt-1 text-xs text-slate-400">
                           Befejezve: {new Date(todo.completed_at).toLocaleString("hu-HU")}
@@ -359,6 +488,48 @@ export function ProjectTodoManager({ projectId, todos, activeSession }: ProjectT
                     >
                       Törlés
                     </button>
+                  </div>
+
+                  <div className="border-t border-slate-100 pt-3">
+                    <div className="space-y-2">
+                      {todo.comments.map((comment) => (
+                        <div key={comment.id} className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="whitespace-pre-wrap">{renderCommentBody(comment.body)}</p>
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteComment(todo.id, comment.id)}
+                              disabled={deletingCommentId === comment.id}
+                              className="shrink-0 text-xs text-slate-400 hover:text-red-600"
+                              title="Komment törlése"
+                            >
+                              {deletingCommentId === comment.id ? "Törlés..." : "Törlés"}
+                            </button>
+                          </div>
+                          <div className="mt-1 text-xs text-slate-400">
+                            <span>{new Date(comment.created_at).toLocaleString("hu-HU")}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+                      <input
+                        className="input text-sm"
+                        placeholder="Komment hozzáadása..."
+                        value={commentDrafts[todo.id] || ""}
+                        onChange={(event) => updateCommentDraft(todo.id, event.target.value)}
+                        maxLength={2000}
+                      />
+                      <button
+                        type="button"
+                        className="button-secondary text-sm"
+                        disabled={submittingCommentId === todo.id || !commentDrafts[todo.id]?.trim()}
+                        onClick={() => void handleAddComment(todo.id)}
+                      >
+                        {submittingCommentId === todo.id ? "Mentés..." : "Komment"}
+                      </button>
+                    </div>
+                    {commentErrors[todo.id] ? <p className="mt-2 text-xs text-red-600">{commentErrors[todo.id]}</p> : null}
                   </div>
 
                   {/* Action status buttons */}

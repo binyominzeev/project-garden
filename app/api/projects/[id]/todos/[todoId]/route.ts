@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { deleteProjectTodo, getProject, updateProjectTodoStatus } from "@/lib/garden";
+import { deleteProjectTodo, getProject, updateProjectTodoStatus, updateProjectTodoTitle } from "@/lib/garden";
 import type { TodoStatus } from "@/lib/types";
 
 type RouteParams = {
@@ -16,6 +16,14 @@ export async function PUT(request: Request, { params }: RouteParams) {
     }
 
     const body = await request.json();
+    if (typeof body.title === "string") {
+      const updated = updateProjectTodoTitle(project.id, todoId, body.title);
+      if (!updated) {
+        return NextResponse.json({ error: "Todo not found" }, { status: 404 });
+      }
+      return NextResponse.json(updated);
+    }
+
     const status = body.status as TodoStatus;
 
     const updated = updateProjectTodoStatus(project.id, todoId, status);
@@ -26,7 +34,8 @@ export async function PUT(request: Request, { params }: RouteParams) {
     return NextResponse.json(updated);
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "Failed to update todo" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Failed to update todo";
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }
 

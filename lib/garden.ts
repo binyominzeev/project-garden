@@ -9,6 +9,7 @@ import type {
   ProjectDetail,
   ProjectStatus,
   ProjectTodo,
+  ProjectTodoComment,
   Recommendation,
   Suggestion,
   SuggestionStatus,
@@ -596,7 +597,7 @@ export function deleteExperiment(id: number) {
 }
 
 export function getProjectTodos(projectId: number): ProjectTodo[] {
-  return db.prepare(`
+  const todos = db.prepare(`
     SELECT * FROM project_todos
     WHERE project_id = ?
     ORDER BY CASE status
@@ -606,6 +607,13 @@ export function getProjectTodos(projectId: number): ProjectTodo[] {
       WHEN 'done' THEN 4
     END, updated_at DESC
   `).all(projectId) as ProjectTodo[];
+
+  return todos.map((todo) => ({ ...todo, comments: getProjectTodoComments(todo.id) }));
+}
+
+export function getProjectTodo(projectId: number, todoId: number): ProjectTodo | null {
+  const todo = db.prepare("SELECT * FROM project_todos WHERE id = ? AND project_id = ?").get(todoId, projectId) as ProjectTodo | undefined;
+  return todo ? { ...todo, comments: getProjectTodoComments(todo.id) } : null;
 }
 
 export function createProjectTodo(projectId: number, title: string): ProjectTodo {
@@ -621,7 +629,55 @@ export function createProjectTodo(projectId: number, title: string): ProjectTodo
 
   db.prepare("UPDATE projects SET updated_at = ? WHERE id = ?").run(timestamp, projectId);
 
-  return db.prepare("SELECT * FROM project_todos WHERE id = ?").get(res.lastInsertRowid) as ProjectTodo;
+  return getProjectTodo(projectId, Number(res.lastInsertRowid)) as ProjectTodo;
+}
+
+export function updateProjectTodoTitle(projectId: number, todoId: number, title: string): ProjectTodo | null {
+  const cleanTitle = stringValue(title).trim().slice(0, 200);
+  if (!cleanTitle) {
+    throw new Error("Todo title is required");
+  }
+
+  const existing = getProjectTodo(projectId, todoId);
+  if (!existing) return null;
+
+  const timestamp = now();
+  db.prepare("UPDATE project_todos SET title = ?, updated_at = ? WHERE id = ? AND project_id = ?")
+    .run(cleanTitle, timestamp, todoId, projectId);
+  db.prepare("UPDATE projects SET updated_at = ? WHERE id = ?").run(timestamp, projectId);
+
+  return getProjectTodo(projectId, todoId);
+}
+
+export function getProjectTodoComments(todoId: number): ProjectTodoComment[] {
+  return db.prepare("SELECT * FROM project_todo_comments WHERE todo_id = ? ORDER BY created_at DESC")
+    .all(todoId) as ProjectTodoComment[];
+}
+
+export function createProjectTodoComment(projectId: number, todoId: number, body: unknown): ProjectTodoComment | null {
+  if (!getProjectTodo(projectId, todoId)) return null;
+
+  const cleanBody = stringValue(body).trim().slice(0, 2000);
+  if (!cleanBody) {
+    throw new Error("Comment text is required");
+  }
+
+  const timestamp = now();
+  const result = db.prepare(`
+    INSERT INTO project_todo_comments (todo_id, body, created_at, updated_at)
+    VALUES (?, ?, ?, ?)
+  `).run(todoId, cleanBody, timestamp, timestamp);
+
+  return db.prepare("SELECT * FROM project_todo_comments WHERE id = ?").get(result.lastInsertRowid) as ProjectTodoComment;
+}
+
+export function deleteProjectTodoComment(projectId: number, todoId: number, commentId: number): boolean {
+  return db.prepare(`
+    DELETE FROM project_todo_comments
+    WHERE id = ? AND todo_id = ? AND todo_id IN (
+      SELECT id FROM project_todos WHERE id = ? AND project_id = ?
+    )
+  `).run(commentId, todoId, todoId, projectId).changes > 0;
 }
 
 function stopActiveWorkSessions() {

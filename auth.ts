@@ -1,5 +1,7 @@
 import NextAuth from "next-auth";
 
+const isProduction = process.env.NODE_ENV === "production";
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     {
@@ -20,27 +22,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       name: "authjs.state",
       options: {
         httpOnly: true,
-        sameSite: "none",
+        sameSite: isProduction ? "none" : "lax",
         path: "/",
-        secure: true,
+        secure: isProduction,
       },
     },
     pkceCodeVerifier: {
       name: "authjs.pkce.code_verifier",
       options: {
         httpOnly: true,
-        sameSite: "none",
+        sameSite: isProduction ? "none" : "lax",
         path: "/",
-        secure: true,
+        secure: isProduction,
         maxAge: 60 * 15,
       },
     },
     callbackUrl: {
       name: "authjs.callback-url",
       options: {
-        sameSite: "none",
+        sameSite: isProduction ? "none" : "lax",
         path: "/",
-        secure: true,
+        secure: isProduction,
       },
     },
   },

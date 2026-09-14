@@ -36,12 +36,19 @@ Tables created automatically on first run:
 - `ideas`
 - `suggestions`
 - `experiments`
+- `project_todos`
+- `project_todo_comments`
+- `work_sessions`
 
 ## API routes
 
 - `GET/POST /api/projects`
 - `GET/PUT/DELETE /api/projects/[id]`
 - `POST /api/projects/[id]/log`
+- `GET/POST /api/projects/[id]/todos`
+- `PUT/DELETE /api/projects/[id]/todos/[todoId]`
+- `GET/POST /api/projects/[id]/todos/[todoId]/comments`
+- `DELETE /api/projects/[id]/todos/[todoId]/comments/[commentId]`
 - `GET/POST /api/ideas`
 - `GET/PUT/DELETE /api/ideas/[id]`
 - `GET/POST /api/suggestions`

@@ -4,6 +4,14 @@ export type SuggestionStatus = "open" | "done" | "discarded";
 export type ExperimentStatus = "active" | "promoted" | "kept_as_idea" | "discarded" | "postponed";
 export type TodoStatus = "todo" | "want_to_work" | "working" | "done";
 
+export type ProjectTodoComment = {
+  id: number;
+  todo_id: number;
+  body: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type ProjectTodo = {
   id: number;
   project_id: number;
@@ -12,6 +20,7 @@ export type ProjectTodo = {
   completed_at: string | null;
   created_at: string;
   updated_at: string;
+  comments: ProjectTodoComment[];
 };
 
 export type WorkSession = {
