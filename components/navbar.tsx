@@ -16,7 +16,7 @@ export function Navbar() {
   const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-20 border-b border-white/60 bg-[#f7f4ec]/90 backdrop-blur">
+    <header className="site-header sticky top-0 z-20 border-b border-white/60 bg-[#f7f4ec]/90 backdrop-blur">
       <div className="shell flex flex-col gap-4 pb-4 pt-4 sm:flex-row sm:items-center sm:justify-between sm:pb-4">
         <Link href="/" className="flex items-center gap-3">
           <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-700 text-xl text-white shadow-sm">🌿</span>

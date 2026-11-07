@@ -31,7 +31,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   }
 
   return (
-    <main className="shell space-y-6">
+    <main className="shell project-detail-page space-y-6">
       <ProjectDetailClient detail={detail} projectOptions={listProjects()} />
     </main>
   );

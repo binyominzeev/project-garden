@@ -47,6 +47,16 @@ textarea {
     @apply mx-auto max-w-6xl px-4 pb-12 pt-6 sm:px-6 lg:px-8;
   }
 
+  @media (max-width: 639px) {
+    body:has(.project-detail-page [data-comment-focus]) .site-header {
+      display: none;
+    }
+
+    .project-detail-page:has([data-comment-focus]) {
+      padding: 0.5rem 0.5rem 3rem;
+    }
+  }
+
   .panel {
     @apply rounded-3xl border border-white/60 bg-white/80 shadow-sm backdrop-blur;
   }
