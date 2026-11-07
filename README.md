@@ -63,4 +63,4 @@ Tables created automatically on first run:
 
 - This is intentionally a simple MVP with direct SQL queries and no ORM.
 - Deleting a project keeps related ideas, suggestions, and experiments by nulling their `project_id` foreign key.
-- Todo comments support up to 10,000 characters and preserve line breaks. Enter starts a new line; Ctrl+Enter (or Cmd+Enter) submits. Long comments can be expanded, and the focus toggle shows all comments for one todo in full.
+- Todo comments support up to 10,000 characters and preserve line breaks. Enter starts a new line; Ctrl+Enter (or Cmd+Enter) submits. Long comments can be expanded, and the focus toggle shows all comments for one todo in full across the project page.

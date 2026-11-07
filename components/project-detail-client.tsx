@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Project, ProjectDetail, ProjectStatus } from "@/lib/types";
 import { statusLabel } from "@/lib/types";
@@ -27,6 +28,8 @@ export function ProjectDetailClient({ detail, projectOptions }: ProjectDetailCli
   const [saving, setSaving] = useState(false);
   const [logging, setLogging] = useState(false);
   const [addingSuggestion, setAddingSuggestion] = useState(false);
+  const [focusedTodoId, setFocusedTodoId] = useState<number | null>(null);
+  const focusedTodo = detail.todos.find((todo) => todo.id === focusedTodoId);
 
   async function updateProject(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -148,9 +151,20 @@ export function ProjectDetailClient({ detail, projectOptions }: ProjectDetailCli
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+    <div className="space-y-6">
+      {!focusedTodo ? (
+        <div className="flex items-center justify-between gap-4">
+          <Link href="/projects" className="button-ghost">
+            ← Back to projects
+          </Link>
+          <Link href="/" className="button-secondary">
+            Home recommendations
+          </Link>
+        </div>
+      ) : null}
+      <div className={focusedTodo ? "" : "grid gap-6 xl:grid-cols-[1.15fr_0.85fr]"}>
       <div className="space-y-6">
-        <section className="panel p-6 sm:p-8">
+        <section hidden={!!focusedTodo} className="panel p-6 sm:p-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">{statusLabel.project[detail.project.status]}</p>
@@ -184,9 +198,11 @@ export function ProjectDetailClient({ detail, projectOptions }: ProjectDetailCli
           projectId={detail.project.id}
           todos={detail.todos || []}
           activeSession={detail.activeSession || null}
+          focusedTodoId={focusedTodo?.id ?? null}
+          onFocusTodo={setFocusedTodoId}
         />
 
-        <section className="panel p-6 sm:p-8">
+        <section hidden={!!focusedTodo} className="panel p-6 sm:p-8">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="text-xl font-semibold text-slate-900">Edit project</h2>
@@ -223,7 +239,7 @@ export function ProjectDetailClient({ detail, projectOptions }: ProjectDetailCli
           </form>
         </section>
 
-        <section className="panel p-6 sm:p-8">
+        <section hidden={!!focusedTodo} className="panel p-6 sm:p-8">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">Work log</p>
             <h2 className="mt-2 text-xl font-semibold text-slate-900">What did you do, and what&apos;s next?</h2>
@@ -248,7 +264,7 @@ export function ProjectDetailClient({ detail, projectOptions }: ProjectDetailCli
         </section>
       </div>
 
-      <div className="space-y-6">
+      <div hidden={!!focusedTodo} className="space-y-6">
         <section className="panel p-6 sm:p-8">
           <h2 className="text-xl font-semibold text-slate-900">Add a linked suggestion</h2>
           <p className="mt-2 text-sm text-slate-600">Capture improvements while the project context is fresh.</p>
@@ -303,6 +319,7 @@ export function ProjectDetailClient({ detail, projectOptions }: ProjectDetailCli
             ))}
           </div>
         </section>
+      </div>
       </div>
     </div>
   );

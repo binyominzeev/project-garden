@@ -9,6 +9,8 @@ type ProjectTodoManagerProps = {
   projectId: number;
   todos: ProjectTodo[];
   activeSession: WorkSession | null;
+  focusedTodoId: number | null;
+  onFocusTodo: (todoId: number | null) => void;
 };
 
 function triggerConfetti() {
@@ -172,7 +174,7 @@ function CommentText({ body, focused }: { body: string; focused: boolean }) {
   );
 }
 
-export function ProjectTodoManager({ projectId, todos, activeSession }: ProjectTodoManagerProps) {
+export function ProjectTodoManager({ projectId, todos, activeSession, focusedTodoId, onFocusTodo }: ProjectTodoManagerProps) {
   const router = useRouter();
   const [newTitle, setNewTitle] = useState("");
   const [adding, setAdding] = useState(false);
@@ -184,11 +186,24 @@ export function ProjectTodoManager({ projectId, todos, activeSession }: ProjectT
   const [commentErrors, setCommentErrors] = useState<Record<number, string>>({});
   const [submittingCommentId, setSubmittingCommentId] = useState<number | null>(null);
   const [deletingCommentId, setDeletingCommentId] = useState<number | null>(null);
-  const [focusedTodoId, setFocusedTodoId] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [celebrationMessage, setCelebrationMessage] = useState<string | null>(null);
+  const closeFocusRef = useRef<HTMLButtonElement>(null);
+  const previousFocusedTodoId = useRef<number | null>(null);
 
   const workingTodo = todos.find((t) => t.status === "working");
+  const focusedTodo = todos.find((todo) => todo.id === focusedTodoId);
+  const activeFocusedTodoId = focusedTodo?.id ?? null;
+
+  useEffect(() => {
+    if (activeFocusedTodoId !== null) {
+      closeFocusRef.current?.focus({ preventScroll: true });
+      window.scrollTo({ top: 0 });
+    } else if (previousFocusedTodoId.current !== null) {
+      document.getElementById(`focus-todo-comments-${previousFocusedTodoId.current}`)?.focus();
+    }
+    previousFocusedTodoId.current = activeFocusedTodoId;
+  }, [activeFocusedTodoId]);
 
   // Timer loop for active session / working todo
   useEffect(() => {
@@ -364,7 +379,6 @@ export function ProjectTodoManager({ projectId, todos, activeSession }: ProjectT
   const doneCount = todos.filter((t) => t.status === "done").length;
   const totalCount = todos.length;
   const progressPercent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
-  const focusedTodo = todos.find((todo) => todo.id === focusedTodoId);
 
   function renderComments(todo: ProjectTodo, focused: boolean) {
     return (
@@ -426,14 +440,14 @@ export function ProjectTodoManager({ projectId, todos, activeSession }: ProjectT
   return (
     <div className="space-y-6">
       {/* Toast celebration message */}
-      {celebrationMessage ? (
+      {celebrationMessage && !focusedTodo ? (
         <div className="animate-bounce rounded-2xl bg-emerald-600 p-4 text-center font-medium text-white shadow-lg">
           {celebrationMessage}
         </div>
       ) : null}
 
       {/* Active Timer Bar */}
-      {(workingTodo || activeSession) && (
+      {!focusedTodo && (workingTodo || activeSession) && (
         <div className="panel border-2 border-emerald-500 bg-emerald-50/80 p-5 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
@@ -478,7 +492,7 @@ export function ProjectTodoManager({ projectId, todos, activeSession }: ProjectT
 
       {/* TODO List Panel */}
       <div className="panel p-6 space-y-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {!focusedTodo ? <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-semibold text-slate-900">Projekthez tartozó TODO Lista</h2>
             <p className="text-sm text-slate-600">
@@ -497,7 +511,7 @@ export function ProjectTodoManager({ projectId, todos, activeSession }: ProjectT
               />
             </div>
           </div>
-        </div>
+        </div> : null}
 
         {/* Add Todo Form */}
         {!focusedTodo ? <form onSubmit={handleAddTodo} className="flex gap-2">
@@ -522,7 +536,7 @@ export function ProjectTodoManager({ projectId, todos, activeSession }: ProjectT
                   <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Kommentek fókuszban</p>
                   <h3 className="break-words text-lg font-semibold text-slate-900">{focusedTodo.title}</h3>
                 </div>
-                <button type="button" onClick={() => setFocusedTodoId(null)} aria-pressed="true" className="button-secondary text-sm">
+                <button ref={closeFocusRef} type="button" onClick={() => onFocusTodo(null)} className="button-secondary text-sm">
                   Vissza a feladatlistához
                 </button>
               </div>
@@ -605,7 +619,7 @@ export function ProjectTodoManager({ projectId, todos, activeSession }: ProjectT
                     </button>
                   </div>
 
-                  <button type="button" onClick={() => setFocusedTodoId(todo.id)} aria-pressed="false" className="button-ghost self-start text-xs">
+                  <button id={`focus-todo-comments-${todo.id}`} type="button" onClick={() => onFocusTodo(todo.id)} className="button-ghost self-start text-xs">
                     Kommentek fókuszban ({todo.comments.length})
                   </button>
                   {renderComments(todo, false)}
