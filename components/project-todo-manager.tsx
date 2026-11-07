@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { TODO_COMMENT_MAX_LENGTH } from "@/lib/todo-comments";
 import type { ProjectTodo, TodoStatus, WorkSession } from "@/lib/types";
 
 type ProjectTodoManagerProps = {
@@ -129,6 +130,48 @@ function renderCommentBody(body: string) {
   });
 }
 
+function CommentText({ body, focused }: { body: string; focused: boolean }) {
+  const previewRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLParagraphElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+
+  useEffect(() => {
+    const preview = previewRef.current;
+    const content = contentRef.current;
+    if (!preview || !content || focused || expanded) return;
+
+    function measure() {
+      if (content && preview) setOverflows(content.scrollHeight > preview.clientHeight);
+    }
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(content);
+    observer.observe(preview);
+    return () => observer.disconnect();
+  }, [body, focused, expanded]);
+
+  const showFull = focused || expanded;
+  return (
+    <div className="min-w-0 flex-1">
+      <div ref={previewRef} className={showFull ? "" : "max-h-24 overflow-hidden"}>
+        <p ref={contentRef} className="whitespace-pre-wrap break-words">{renderCommentBody(body)}</p>
+      </div>
+      {!focused && (overflows || expanded) ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((current) => !current)}
+          aria-expanded={expanded}
+          className="mt-1 text-xs font-medium text-emerald-700 hover:text-emerald-900"
+        >
+          {expanded ? "Kevesebb" : "More..."}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export function ProjectTodoManager({ projectId, todos, activeSession }: ProjectTodoManagerProps) {
   const router = useRouter();
   const [newTitle, setNewTitle] = useState("");
@@ -141,6 +184,7 @@ export function ProjectTodoManager({ projectId, todos, activeSession }: ProjectT
   const [commentErrors, setCommentErrors] = useState<Record<number, string>>({});
   const [submittingCommentId, setSubmittingCommentId] = useState<number | null>(null);
   const [deletingCommentId, setDeletingCommentId] = useState<number | null>(null);
+  const [focusedTodoId, setFocusedTodoId] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [celebrationMessage, setCelebrationMessage] = useState<string | null>(null);
 
@@ -320,6 +364,64 @@ export function ProjectTodoManager({ projectId, todos, activeSession }: ProjectT
   const doneCount = todos.filter((t) => t.status === "done").length;
   const totalCount = todos.length;
   const progressPercent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+  const focusedTodo = todos.find((todo) => todo.id === focusedTodoId);
+
+  function renderComments(todo: ProjectTodo, focused: boolean) {
+    return (
+      <div className="border-t border-slate-100 pt-3">
+        <div className="space-y-2">
+          {todo.comments.map((comment) => (
+            <div key={comment.id} className={`rounded-xl bg-slate-50 text-slate-700 ${focused ? "px-4 py-4 text-base" : "px-3 py-2 text-sm"}`}>
+              <div className="flex items-start justify-between gap-3">
+                <CommentText body={comment.body} focused={focused} />
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteComment(todo.id, comment.id)}
+                  disabled={deletingCommentId === comment.id}
+                  className="shrink-0 text-xs text-slate-400 hover:text-red-600"
+                  title="Komment törlése"
+                >
+                  {deletingCommentId === comment.id ? "Törlés..." : "Törlés"}
+                </button>
+              </div>
+              <div className="mt-1 text-xs text-slate-400">
+                <span>{new Date(comment.created_at).toLocaleString("hu-HU")}</span>
+              </div>
+            </div>
+          ))}
+          {focused && todo.comments.length === 0 ? (
+            <p className="text-sm text-slate-500">Ehhez a feladathoz még nincs komment.</p>
+          ) : null}
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+          <textarea
+            className={`input resize-y text-sm ${focused ? "min-h-40" : "min-h-20"}`}
+            placeholder="Komment hozzáadása..."
+            aria-label={`Komment hozzáadása: ${todo.title}`}
+            value={commentDrafts[todo.id] || ""}
+            onChange={(event) => updateCommentDraft(todo.id, event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault();
+                void handleAddComment(todo.id);
+              }
+            }}
+            maxLength={TODO_COMMENT_MAX_LENGTH}
+          />
+          <button
+            type="button"
+            className="button-secondary self-end text-sm"
+            disabled={submittingCommentId !== null || !commentDrafts[todo.id]?.trim()}
+            onClick={() => void handleAddComment(todo.id)}
+          >
+            {submittingCommentId === todo.id ? "Mentés..." : "Komment"}
+          </button>
+        </div>
+        <p className="mt-1 text-xs text-slate-500">Enter: új sor · Ctrl+Enter: küldés · Legfeljebb {TODO_COMMENT_MAX_LENGTH} karakter</p>
+        {commentErrors[todo.id] ? <p className="mt-2 text-xs text-red-600">{commentErrors[todo.id]}</p> : null}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -398,7 +500,7 @@ export function ProjectTodoManager({ projectId, todos, activeSession }: ProjectT
         </div>
 
         {/* Add Todo Form */}
-        <form onSubmit={handleAddTodo} className="flex gap-2">
+        {!focusedTodo ? <form onSubmit={handleAddTodo} className="flex gap-2">
           <input
             type="text"
             placeholder="Új feladat megadása..."
@@ -409,11 +511,24 @@ export function ProjectTodoManager({ projectId, todos, activeSession }: ProjectT
           <button type="submit" disabled={adding || !newTitle.trim()} className="button-primary">
             + Hozzáadás
           </button>
-        </form>
+        </form> : null}
 
         {/* Todo Items */}
         <div className="space-y-3">
-          {todos.length === 0 ? (
+          {focusedTodo ? (
+            <section aria-label={`Kommentek fókuszban: ${focusedTodo.title}`} className="space-y-4 rounded-2xl border border-emerald-200 bg-white p-4 sm:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Kommentek fókuszban</p>
+                  <h3 className="break-words text-lg font-semibold text-slate-900">{focusedTodo.title}</h3>
+                </div>
+                <button type="button" onClick={() => setFocusedTodoId(null)} aria-pressed="true" className="button-secondary text-sm">
+                  Vissza a feladatlistához
+                </button>
+              </div>
+              {renderComments(focusedTodo, true)}
+            </section>
+          ) : todos.length === 0 ? (
             <p className="py-6 text-center text-sm italic text-slate-500">
               Még nincsenek feladatok a projekthez. Írj be egyet fent!
             </p>
@@ -490,53 +605,10 @@ export function ProjectTodoManager({ projectId, todos, activeSession }: ProjectT
                     </button>
                   </div>
 
-                  <div className="border-t border-slate-100 pt-3">
-                    <div className="space-y-2">
-                      {todo.comments.map((comment) => (
-                        <div key={comment.id} className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                          <div className="flex items-start justify-between gap-3">
-                            <p className="whitespace-pre-wrap">{renderCommentBody(comment.body)}</p>
-                            <button
-                              type="button"
-                              onClick={() => void handleDeleteComment(todo.id, comment.id)}
-                              disabled={deletingCommentId === comment.id}
-                              className="shrink-0 text-xs text-slate-400 hover:text-red-600"
-                              title="Komment törlése"
-                            >
-                              {deletingCommentId === comment.id ? "Törlés..." : "Törlés"}
-                            </button>
-                          </div>
-                          <div className="mt-1 text-xs text-slate-400">
-                            <span>{new Date(comment.created_at).toLocaleString("hu-HU")}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-                      <input
-                        className="input text-sm"
-                        placeholder="Komment hozzáadása..."
-                        value={commentDrafts[todo.id] || ""}
-                        onChange={(event) => updateCommentDraft(todo.id, event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" && !event.shiftKey) {
-                            event.preventDefault();
-                            void handleAddComment(todo.id);
-                          }
-                        }}
-                        maxLength={2000}
-                      />
-                      <button
-                        type="button"
-                        className="button-secondary text-sm"
-                        disabled={submittingCommentId === todo.id || !commentDrafts[todo.id]?.trim()}
-                        onClick={() => void handleAddComment(todo.id)}
-                      >
-                        {submittingCommentId === todo.id ? "Mentés..." : "Komment"}
-                      </button>
-                    </div>
-                    {commentErrors[todo.id] ? <p className="mt-2 text-xs text-red-600">{commentErrors[todo.id]}</p> : null}
-                  </div>
+                  <button type="button" onClick={() => setFocusedTodoId(todo.id)} aria-pressed="false" className="button-ghost self-start text-xs">
+                    Kommentek fókuszban ({todo.comments.length})
+                  </button>
+                  {renderComments(todo, false)}
 
                   {/* Action status buttons */}
                   <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-100">

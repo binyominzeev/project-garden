@@ -1,0 +1,1 @@
+export const TODO_COMMENT_MAX_LENGTH = 10000;

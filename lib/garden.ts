@@ -1,4 +1,5 @@
 import db from "@/lib/db";
+import { TODO_COMMENT_MAX_LENGTH } from "@/lib/todo-comments";
 import type {
   Experiment,
   ExperimentStatus,
@@ -657,16 +658,18 @@ export function getProjectTodoComments(todoId: number): ProjectTodoComment[] {
 export function createProjectTodoComment(projectId: number, todoId: number, body: unknown): ProjectTodoComment | null {
   if (!getProjectTodo(projectId, todoId)) return null;
 
-  const cleanBody = stringValue(body).trim().slice(0, 2000);
-  if (!cleanBody) {
+  if (typeof body !== "string" || !body.trim()) {
     throw new Error("Comment text is required");
+  }
+  if (body.length > TODO_COMMENT_MAX_LENGTH) {
+    throw new Error(`A komment legfeljebb ${TODO_COMMENT_MAX_LENGTH} karakter lehet`);
   }
 
   const timestamp = now();
   const result = db.prepare(`
     INSERT INTO project_todo_comments (todo_id, body, created_at, updated_at)
     VALUES (?, ?, ?, ?)
-  `).run(todoId, cleanBody, timestamp, timestamp);
+  `).run(todoId, body, timestamp, timestamp);
 
   return db.prepare("SELECT * FROM project_todo_comments WHERE id = ?").get(result.lastInsertRowid) as ProjectTodoComment;
 }
